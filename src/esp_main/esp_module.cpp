@@ -15,6 +15,10 @@ void showlog(const String& event){
   Serial.println(event);
 } 
 
+#ifdef wifi_enabled
+  #include <ESP8266WiFi.h>
+#endif
+
 #ifdef wifi_autoconfig
   #include <WiFiManager.h>
 #endif
@@ -47,12 +51,36 @@ void showlog(const String& event){
   desc: 提供用户配置wifi的入口
 */
 bool wifi_config_by_web(cb_wifi_serverInit doInit){
-  #ifdef wifi_autoconfig
+  #ifdef wifi_manualconfig //手动
+    //设置为无线终端模式
+    WiFi.mode(WIFI_STA);
+
+    if (doInit != NULL) {
+      doInit(NULL);
+    }
+
+    //连接wifi
+    WiFi.begin(wifi_ssid, wifi_pwd);    
+    Serial.println("");
+    byte i = 0;
+
+    while (WiFi.status() != WL_CONNECTED) {          
+      Serial.print(".");
+      delay(500);
+      i++;
+
+      if (i > 20){
+        break;
+      }
+    }
+  #endif
+
+  #ifdef wifi_autoconfig //自动
     WiFiManager wifiManager;
     wifiManager.autoConnect(dev_name);
   #endif
 
-  #ifdef wifi_fs_autoconfig
+  #ifdef wifi_fs_autoconfig //自动 + FS
     if (!startFilesystem()){
       showlog("LittleFS error!");
       return false;
@@ -64,7 +92,6 @@ bool wifi_config_by_web(cb_wifi_serverInit doInit){
     //禁用 Modem-sleep 模式
     //WiFi.setSleep(WIFI_PS_NONE);
 
-    //主程序执行初始化
     if (doInit != NULL) {
       doInit(&wifi_fs_server);
     }
@@ -74,19 +101,24 @@ bool wifi_config_by_web(cb_wifi_serverInit doInit){
     showlog("\nserver on http://" + local.toString());
   #endif
 
-  if (WiFi.status() != WL_CONNECTED){
-    showlog("WiFi is invalid!");
-    return false;
-  }
-  
-  String str = "\nHost: ";
-    str.concat(dev_name);
-    str.concat("\nWiFi: ");
-    str.concat(WiFi.SSID());
-    str.concat("\nIP: ");
-    str.concat(WiFi.localIP().toString());
-  //combine event
+  #ifdef wifi_enabled
+    if (WiFi.status() != WL_CONNECTED){
+      showlog("WiFi is invalid!");      
+      Serial.flush();
 
-  showlog(str);
+      WiFi.mode(WIFI_OFF);      
+      ESP.deepSleep(10e6, RF_DISABLED);
+      return false;
+    }
+    
+    String str = "\nHost: ";
+      str.concat(dev_name);
+      str.concat("\nWiFi: ");
+      str.concat(WiFi.SSID());
+      str.concat("\nIP: ");
+      str.concat(WiFi.localIP().toString());
+    showlog(str);
+  #endif
+
   return true;
 }

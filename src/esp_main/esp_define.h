@@ -5,7 +5,7 @@
 #ifndef _esp_define__
 #define _esp_define__
   //设备名称
-  char dev_name[] = "esp_8266";
+  const char* dev_name = "esp_8266";
   
   //启用WiFi
   #define wifi_enabled
@@ -20,5 +20,11 @@
 
     //手动配置WiFi
     //#define wifi_manualconfig
+  #endif
+
+  #ifdef wifi_manualconfig
+    //wifi param
+    const char* wifi_ssid = "ssid";
+    const char* wifi_pwd = "pwd";
   #endif
 #endif
