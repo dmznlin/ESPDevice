@@ -49,6 +49,9 @@
 //启用ini
 #define ini_enabled
 
+//运行监控
+#define run_status
+
 //global-------------------------------------------------------------------------
 //分隔符
 const char* split_tag = ";";
@@ -218,6 +221,14 @@ charb* sys_data_buffer = NULL;
 //随机数-------------------------------------------------------------------------
 #ifdef random_enabled
   #include <ESP8266TrueRandom.h>
+#endif
+
+//运行监控-----------------------------------------------------------------------
+#ifdef  run_status
+  //上次发送计时
+  uint64_t run_status_lastsend = 0;
+  //刷新频率(秒)
+  const byte run_status_update = 30;
 #endif
 
 #endif

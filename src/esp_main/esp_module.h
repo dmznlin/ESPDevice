@@ -24,6 +24,20 @@ uint64_t GetTickCount(bool precise = true) {
 }
 
 /*
+  date: 2025-02-21 18:32:02
+  parm: 开始计时;精确值
+  desc: 从from到当前的时间差
+*/
+uint64_t GetTickcountDiff(uint64_t from, bool precise = false) {
+  uint64_t now = GetTickCount(precise);
+  if (now >= from) {
+    return now - from;
+  }
+
+  return now + (UINT64_MAX) - from;
+}
+
+/*
   date: 2025-02-24 21:21:02
   desc: 新建缓冲数据项
 */
@@ -714,7 +728,7 @@ void do_setup_end() {
     mqtt_client.setServer(mqtt_server_ip, mqtt_server_port);
     mqtt_client.setCallback(mqtt_on_data);
   }
-#endif
+  #endif
 }
 
 /*
@@ -742,6 +756,24 @@ bool do_loop_begin() {
   desc: 在loop结束时执行业务
 */
 void do_loop_end() {
+  #ifdef run_status
+  if (GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
+    //update tickcount
+    run_status_lastsend = GetTickCount(false);
+
+    String info = "BufferSize: ";
+      info.concat(sys_buffer_size);
+      info.concat("\nHeapFree: ");
+      info.concat(ESP.getFreeHeap());
+      info.concat("\nHeapFragmentation: ");
+      info.concat(ESP.getHeapFragmentation());
+      info.concat("\nMaxFreeBlockSize: ");
+      info.concat(ESP.getMaxFreeBlockSize()); 
+      info.concat("\n");
+    showlog(info);
+  }
+  #endif
+
   #ifdef mqtt_enabled
   if (!mqtt_client.connected()) {
     mqtt_conn_broker();
