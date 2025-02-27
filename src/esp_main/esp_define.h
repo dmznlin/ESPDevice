@@ -52,6 +52,9 @@
 //运行监控
 #define run_status
 
+//运行时呼吸灯
+#define run_blinkled
+
 //global-------------------------------------------------------------------------
 //分隔符
 const char* split_tag = ";";
@@ -227,8 +230,32 @@ charb* sys_data_buffer = NULL;
 #ifdef  run_status
   //上次发送计时
   uint64_t run_status_lastsend = 0;
+
+  //free head size
+  uint32_t size_heap_last = 0;
+  uint32_t size_heap_now = 0;
+
   //刷新频率(秒)
   const byte run_status_update = 30;
+#endif
+
+//呼吸灯-------------------------------------------------------------------------
+#ifdef run_blinkled
+  //亮灯开始计时
+  uint64_t led_bright_start = 0;
+
+  //当前亮度值
+  uint16_t led_bright_val = 0;
+
+  //峰值亮度(最大1023)
+  const uint16_t led_brightness = 200; 
+  //亮灯时长(毫秒)
+  const uint16_t led_bright_len = 2000;
+  //每个亮度保持时长(毫秒)
+  const byte led_bright_delay = 1;
+  //每个loop循环次数
+  const byte led_bright_inloop_times = 3;
+  //每个loop总耗时: led_bright_delay * led_bright_inloop_times
 #endif
 
 #endif

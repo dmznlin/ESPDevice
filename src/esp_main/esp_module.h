@@ -15,7 +15,7 @@ void showlog(const String& event);
   parm: 精确值
   desc: 开机后经过的计时
 */
-uint64_t GetTickCount(bool precise = true) {
+inline uint64_t GetTickCount(bool precise = true) {
   if (precise) {
     return micros();
   } else {
@@ -694,6 +694,14 @@ bool wifi_config_by_web() {
   desc: 在setup开始时的业务
 */
 bool do_setup_begin() {
+  #ifdef run_status
+  size_heap_last = ESP.getFreeHeap();
+  #endif
+
+  #ifdef run_blinkled
+  pinMode(LED_BUILTIN, OUTPUT);
+  #endif
+
   #ifdef lfs_enabled
   lfs_isok = LittleFS.begin();
 
@@ -736,6 +744,14 @@ void do_setup_end() {
   desc: 在loop开始时执行业务
 */
 bool do_loop_begin() {
+  #ifdef run_blinkled
+  if (led_bright_start == 0) { //亮灯循环开始
+    led_bright_start = GetTickCount(false);
+    led_bright_val = led_brightness;
+    analogWrite(LED_BUILTIN, led_bright_val);
+  }  
+  #endif
+
   #ifdef wifi_fs_autoconfig  
   if (wifi_fs_server.getCaptivePortal()) {
     wifi_fs_server.updateDNS();
@@ -761,16 +777,32 @@ void do_loop_end() {
     //update tickcount
     run_status_lastsend = GetTickCount(false);
 
-    String info = "BufferSize: ";
+    //now free heap
+    size_heap_now = ESP.getFreeHeap();
+
+    String info = "\nBufferSize: ";
       info.concat(sys_buffer_size);
       info.concat("\nHeapFree: ");
-      info.concat(ESP.getFreeHeap());
+      info.concat(size_heap_now);
+      info.concat("\nHeapFreeChange: ");
+      info.concat(int32_t(size_heap_now - size_heap_last));      
       info.concat("\nHeapFragmentation: ");
       info.concat(ESP.getHeapFragmentation());
       info.concat("\nMaxFreeBlockSize: ");
       info.concat(ESP.getMaxFreeBlockSize()); 
-      info.concat("\n");
+
+      #ifdef ntp_enabled
+      info.concat("\nTimeNow: ");
+      info.concat(ntp_client.getFormattedTime());
+      #endif
+      info.concat("\nCoreVersion: ");
+      info.concat(ESP.getCoreVersion());
+      info.concat("\nSdkVersion: ");
+      info.concat(ESP.getSdkVersion());
     showlog(info);
+
+    //last 
+    size_heap_last = size_heap_now;
   }
   #endif
 
@@ -788,6 +820,36 @@ void do_loop_end() {
     }
   }
   #endif   
+
+  #ifdef run_blinkled  
+  uint64_t diff = GetTickcountDiff(led_bright_start);
+  if (diff <= 0 || diff >= led_bright_len) { //亮灯时间结束
+    led_bright_start = 0;
+    return;
+  }
+
+  //本次需达到的亮度值
+  uint16_t inc_val = (diff + led_bright_delay * led_bright_inloop_times) * 1023 / led_bright_len;
+  if (inc_val < led_bright_val + led_bright_inloop_times) {
+    return;
+  }
+
+  //单次循环增量
+  inc_val = (inc_val - led_bright_val) / led_bright_inloop_times + 1;
+
+  for (byte val = 1; val <= led_bright_inloop_times; val++) { //降低亮度
+    led_bright_val += inc_val;
+    if (led_bright_val > 1023) {
+      led_bright_start = 0;
+      return;
+    }
+
+    analogWrite(LED_BUILTIN, led_bright_val);
+    if (val == led_bright_inloop_times ){ //末次循环,延迟由loop完成      
+      delay(led_bright_inloop_times);
+    }
+  }
+  #endif
 }
 
 #endif
