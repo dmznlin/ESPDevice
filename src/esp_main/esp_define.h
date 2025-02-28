@@ -244,18 +244,43 @@ charb* sys_data_buffer = NULL;
   //亮灯开始计时
   uint64_t led_bright_start = 0;
 
-  //当前亮度值
-  uint16_t led_bright_val = 0;
+  //查表数组当前索引
+  byte led_bright_tableIndex = 0;
 
-  //峰值亮度(最大1023)
-  const uint16_t led_brightness = 200; 
   //亮灯时长(毫秒)
-  const uint16_t led_bright_len = 2000;
-  //每个亮度保持时长(毫秒)
-  const byte led_bright_delay = 1;
-  //每个loop循环次数
-  const byte led_bright_inloop_times = 3;
-  //每个loop总耗时: led_bright_delay * led_bright_inloop_times
+  const uint16_t led_bright_len = 1200;
+
+  //查表数组大小，影响平滑度
+  const byte led_bright_tableSize = 100;
+
+  //呼吸值表
+  const uint16_t led_bright_table[] = {621, 646, 671, 696, 721, 745, 769, 792, 814, 836,
+    857, 877, 896, 914, 930, 946, 960, 973, 984, 994, 1003, 1010, 1015, 1019, 1022, 1023, 
+    1022, 1019, 1015, 1010, 1003, 994, 984, 973, 960, 946, 930, 914, 896, 877, 857, 
+    836, 814, 792, 769, 745, 721, 696, 671, 646, 621, 596, 571, 546, 521, 497, 473, 
+    450, 428, 406, 385, 365, 346, 328, 312, 296, 282, 269, 258, 248, 239, 232, 227, 
+    223, 220, 220, 220, 223, 227, 232, 239, 248, 258, 269, 282, 296, 312, 328, 346, 
+    365, 385, 406, 428, 450, 473, 497, 521, 546, 571, 596
+  };
+
+  /* 呼吸表算法:
+import math
+
+table_size = 100 #查表数组大小
+pwm_max = 1023   #最大值
+min_value = 220  #最小值
+
+breathe_table = [
+  int((math.sin(i * 2 * math.pi / table_size) + 1) * ((pwm_max - min_value) / 2) + min_value)
+  for i in range(table_size)
+]
+
+# 输出C语言数组格式
+print("const uint16_t led_bright_table[] = {")
+print(", ".join(map(str, breathe_table)))
+print("};")
+
+  */
 #endif
 
 #endif

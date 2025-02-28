@@ -700,6 +700,8 @@ bool do_setup_begin() {
 
   #ifdef run_blinkled
   pinMode(LED_BUILTIN, OUTPUT);
+  analogWriteFreq(500);   // 设置PWM频率为500Hz
+  analogWriteRange(1023); // 10位分辨率(0-1023)
   #endif
 
   #ifdef lfs_enabled
@@ -747,9 +749,8 @@ bool do_loop_begin() {
   #ifdef run_blinkled
   if (led_bright_start == 0) { //亮灯循环开始
     led_bright_start = GetTickCount(false);
-    led_bright_val = led_brightness;
-    analogWrite(LED_BUILTIN, led_bright_val);
-  }  
+    analogWrite(LED_BUILTIN, led_bright_table[0]);
+  }
   #endif
 
   #ifdef wifi_fs_autoconfig  
@@ -828,26 +829,24 @@ void do_loop_end() {
     return;
   }
 
-  //本次需达到的亮度值
-  uint16_t inc_val = (diff + led_bright_delay * led_bright_inloop_times) * 1023 / led_bright_len;
-  if (inc_val < led_bright_val + led_bright_inloop_times) {
-    return;
-  }
+  //本次需达到的亮度表索引: diff/led_bright_len为时间进度
+  byte idx = (diff * led_bright_tableSize / led_bright_len);
 
-  //单次循环增量
-  inc_val = (inc_val - led_bright_val) / led_bright_inloop_times + 1;
+  if (idx != led_bright_tableIndex && idx >= 0 && idx < led_bright_tableSize) {    
+    if (idx >= led_bright_tableIndex + 3) {
+      //计算与上次的索引差,若较大则补3个delay
+      byte inc_idx = (idx - led_bright_tableIndex) / 3;
 
-  for (byte val = 1; val <= led_bright_inloop_times; val++) { //降低亮度
-    led_bright_val += inc_val;
-    if (led_bright_val > 1023) {
-      led_bright_start = 0;
-      return;
+      for (; led_bright_tableIndex <= idx; led_bright_tableIndex += inc_idx) {
+        analogWrite(LED_BUILTIN, led_bright_table[led_bright_tableIndex]);
+        delay(1);
+      }
+    } else {
+      analogWrite(LED_BUILTIN, led_bright_table[idx]);
     }
 
-    analogWrite(LED_BUILTIN, led_bright_val);
-    if (val == led_bright_inloop_times ){ //末次循环,延迟由loop完成      
-      delay(led_bright_inloop_times);
-    }
+    //idx已写入
+    led_bright_tableIndex = idx + 1;
   }
   #endif
 }
