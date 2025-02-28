@@ -37,7 +37,7 @@
 //启用随机数
 #define random_enabled
 
-//启动WiFi
+//启用WiFi
 #define wifi_enabled
 
 //启用mqtt
@@ -189,6 +189,10 @@ charb* sys_data_buffer = NULL;
   //callback on mqtt received data  
   typedef void (*cb_mqtt_on_data)(char*, uint8_t*, unsigned int);
   cb_mqtt_on_data mqtt_on_data = NULL;
+
+  //callback for send mqtt data
+  typedef void (*cb_mqtt_send)(const char* data, bool retained);
+  cb_mqtt_send mqtt_do_send = NULL;
 #endif
 
 //NTP----------------------------------------------------------------------------
@@ -282,5 +286,22 @@ print("};")
 
   */
 #endif
+
+// ------------------------------------------------------------------------------
+/*
+  date: 2025-02-12 15:43:20
+  parm: 日志
+  desc: 向控制台和mqtt发送日志
+*/
+void showlog(const String& event) {
+  Serial.println(event);
+
+  #ifdef mqtt_showlog
+  if (mqtt_do_send != NULL) {
+    mqtt_do_send(event.c_str(), false);
+  }  
+  #endif
+}
+
 
 #endif
