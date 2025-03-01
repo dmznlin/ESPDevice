@@ -305,21 +305,4 @@ print("};")
   */
 #endif
 
-// ------------------------------------------------------------------------------
-/*
-  date: 2025-02-12 15:43:20
-  parm: 日志
-  desc: 向控制台和mqtt发送日志
-*/
-void showlog(const String& event) {
-  Serial.println(event);
-
-  #ifdef mqtt_showlog
-  if (mqtt_do_send != NULL) {
-    mqtt_do_send(event.c_str(), false);
-  }  
-  #endif
-}
-
-
 #endif

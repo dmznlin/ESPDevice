@@ -4,6 +4,7 @@
 ********************************************************************************/
 #include "esp_define.h"
 #include "esp_module.h"
+#include "esp_znlib.h"
 
 /*
   date: 2025-02-17 11:00:12
@@ -35,7 +36,7 @@ void do_mqtt_onData(char* topic, byte* payload, unsigned int length) {
 
   charb* ptr = sys_random_uuid();
   if (sys_buf_valid(ptr)) {
-    showlog(ptr->data);
+    showlog(ptr);
   }
 }
 #endif
@@ -73,9 +74,12 @@ void loop() {
 
   /*在这里开始写你的代码*/
   charb* ptr = sys_random_uuid();
-  if (sys_buf_valid(ptr)) {
-    showlog(ptr->data);
-  }
+  showlog(ptr);
+  sys_buf_unlock(ptr);
+
+  ptr = ini_getval("system", "name");
+  showlog(ptr);
+  sys_buf_unlock(ptr);
 
   /*external loop*/
   do_loop_end();

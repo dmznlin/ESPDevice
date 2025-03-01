@@ -46,7 +46,7 @@ charb* sys_random_uuid() {
 //INI----------------------------------------------------------------------------
 #ifdef ini_enabled
 charb* ini_errmsg(uint8_t code){
-  charb* ret = sys_buf_lock(30);
+  charb* ret = sys_buf_lock(30, true);
   if (sys_buf_invalid(ret)) {
     return NULL;
   }
@@ -101,7 +101,8 @@ charb* ini_getval(const char* sec, const char* key, const char* def = "") {
 
   IniFile ini_file(ini_filename, FILE_READ);
   if (!ini_file.open()) {
-    showlog("ini_getval: file " + String(ini_filename) + "  does not exist");
+    const char* event[] = { "ini_getval: file ", ini_filename, "  does not exist" };
+    showlog(event, 3);
     strcpy(ret->data, def); //default value
     return ret;
   }  
@@ -110,7 +111,8 @@ charb* ini_getval(const char* sec, const char* key, const char* def = "") {
   if (!ini_file.validate(ret->data, ini_val_len)) { //键值超长
     msg = ini_errmsg(ini_file.getError());
     if (sys_buf_valid(msg)) {
-      showlog("ini_getval: file " + String(ini_filename) + "  not valid," + String(msg->data));
+      const char* event[] = { "ini_getval: file ", ini_filename, "  not valid,",  msg->data };
+      showlog(event, 4);
       sys_buf_unlock(msg);
     }
 
@@ -122,7 +124,8 @@ charb* ini_getval(const char* sec, const char* key, const char* def = "") {
   if (!ini_file.getValue(sec, key, ret->data, ini_val_len)) { //读取失败
     msg = ini_errmsg(ini_file.getError());
     if (sys_buf_valid(msg)) {
-      showlog("ini_getval: read " + String(ini_filename) + "  failure," + String(msg->data));
+      const char* event[] = { "ini_getval: read ", ini_filename, "  failure,",  msg->data };
+      showlog(event, 4);
       sys_buf_unlock(msg);
     }
 
@@ -443,7 +446,7 @@ bool wifi_config_by_web() {
       str.concat(WiFi.localIP().toString());
       str.concat("\nID: ");
       str.concat(dev_id);
-    showlog(str);
+    showlog(str.c_str());
   }
 
   return wifi_isok;
@@ -572,7 +575,7 @@ void do_loop_end() {
       info.concat(ESP.getCoreVersion());
       info.concat("\nSdkVersion: ");
       info.concat(ESP.getSdkVersion());
-    showlog(info);
+    showlog(info.c_str());
 
     //last 
     size_heap_last = size_heap_now;

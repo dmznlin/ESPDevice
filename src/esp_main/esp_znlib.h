@@ -6,6 +6,10 @@
 #define _esp_funtion__
 #include "esp_define.h"
 
+void showlog(charb* event);
+void showlog(const char* event);
+void showlog(const char* event[], const uint8_t size);
+
 /*
   date: 2025-02-21 18:32:02
   parm: 精确值
@@ -33,6 +37,7 @@ uint64_t GetTickcountDiff(uint64_t from, bool precise = false) {
   return now + (UINT64_MAX) - from;
 }
 
+// 缓冲区---------------------------------------------------------------------------
 /*
   date: 2025-02-24 21:21:02
   desc: 新建缓冲数据项
@@ -215,6 +220,86 @@ charb* sys_buf_fill(const char* str) {
   return ret;
 }
 
+/*
+  date: 2025-03-01 11:04:20
+  parm: 数组;大小
+  desc: 合并str为buf项
+*/
+charb* sys_buf_concat(const char* str[], const uint8_t size) {
+  if (size == 0 || str == NULL) {
+    return NULL;
+  }
+
+  size_t total_len = 0;
+  for (uint8_t idx = 0; idx < size; idx++) {
+    if (str[idx] != NULL) {
+      total_len += strlen(str[idx]);
+    }
+  }
+    
+  if (total_len < 1) { //nothing
+    return NULL;
+  }
+
+  charb* ret = sys_buf_lock(total_len + 1, true);  // len+1 to add \0
+  if (sys_buf_invalid(ret)) {
+    return NULL;
+  }
+
+  size_t offset = 0;
+  for (uint8_t idx = 0; idx < size; idx++) {
+    if (str[idx] != NULL) {
+      size_t len = strlen(str[idx]);
+      memcpy(ret->data + offset, str[idx], len);
+      offset += len;
+    }
+  }
+
+  ret->data[offset] = '\0';
+  return ret;
+}
+
+// showlog-----------------------------------------------------------------------
+/*
+  date: 2025-02-12 15:43:20
+  parm: 日志
+  desc: 向控制台和mqtt发送日志
+*/
+void showlog(charb* event) {
+  if (sys_buf_valid(event)) {
+    Serial.println(event->data);
+
+   #ifdef mqtt_showlog
+    if (mqtt_do_send != NULL) {
+      mqtt_do_send(event->data, false);
+    }
+    #endif
+  }
+}
+
+/*
+  date: 2025-03-01 23:43:20
+  parm: 日志
+  desc: 向控制台和mqtt发送日志
+*/
+void showlog(const char* event) {
+  charb* buf = sys_buf_fill(event);
+  showlog(buf);
+  sys_buf_unlock(buf);
+}
+
+/*
+  date: 2025-03-01 23:47:20
+  parm: 日志数组
+  desc: 向控制台和mqtt发送日志
+*/
+void showlog(const char* event[], const uint8_t size) {
+  charb* buf = sys_buf_concat(event, size);
+  showlog(buf);
+  sys_buf_unlock(buf);
+}
+
+// 字符串------------------------------------------------------------------------
 /*
   date: 2025-02-19 10:10:20
   parm: 键值字符串;键名;默认值;分隔符
