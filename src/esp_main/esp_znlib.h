@@ -44,12 +44,17 @@ charb* sys_buf_new() {
     return item;
   }
 
+  item->type = 0;
   item->data = NULL;
   item->len = 0;
   item->next = NULL;
   item->used = false;
   item->val_bool = false;
   item->val_ptr = NULL;
+
+  #ifdef buf_auto_unlock
+  item->stamp = 0;
+  #endif
 
   sys_buffer_size++;
   return item;
@@ -75,10 +80,10 @@ inline bool sys_buf_invalid(charb* item) {
 
 /*
   date: 2025-02-24 22:11:02
-  parm: 数据长度
+  parm: 数据长度;自动释放
   desc: 从缓冲区中锁定满足长度为len的项
 */
-charb* sys_buf_lock(byte len_data) {
+charb* sys_buf_lock(byte len_data, bool auto_unlock = false) {
   if (len_data < 1 || len_data > UINT8_MAX) {
     return NULL;
   }
@@ -93,6 +98,13 @@ charb* sys_buf_lock(byte len_data) {
   charb* tmp = sys_data_buffer;
   while (tmp != NULL)
   {
+    #ifdef buf_auto_unlock
+    if (tmp->stamp != 0 && tmp->stamp != sys_buffer_stamp) { //自动解锁
+      tmp->used = false;
+      tmp->stamp = 0;
+    }
+    #endif
+
     item_last = tmp;
     if (tmp->used) { //使用中
       tmp = tmp->next;
@@ -157,6 +169,12 @@ charb* sys_buf_lock(byte len_data) {
 
     if (item->data != NULL) {
       item->used = true; //锁定
+
+      #ifdef buf_auto_unlock
+      if (auto_unlock) { //自动释放标记
+        item->stamp = sys_buffer_stamp;
+      }
+      #endif
     }
   }
 
@@ -176,8 +194,25 @@ void sys_buf_unlock(charb* item) {
   if (item != NULL) {
     noInterrupts();//sync-lock
     item->used = false;
+
+    #ifdef buf_auto_unlock
+    item->stamp = 0;
+    #endif
     interrupts(); //unlock
   }
+}
+
+/*
+  date: 2025-03-01 10:12:20
+  parm: 数据
+  desc: 生成内容为str的buf项
+*/
+charb* sys_buf_fill(const char* str) {
+  charb* ret = sys_buf_lock(strlen(str), true);
+  if (sys_buf_valid(ret)) {
+    strcpy(ret->data, str);
+  }
+  return ret;
 }
 
 /*

@@ -32,6 +32,11 @@ void do_mqtt_onData(char* topic, byte* payload, unsigned int length) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
+
+  charb* ptr = sys_random_uuid();
+  if (sys_buf_valid(ptr)) {
+    showlog(ptr->data);
+  }
 }
 #endif
 
@@ -67,6 +72,10 @@ void loop() {
   if (!do_loop_begin()) return;
 
   /*在这里开始写你的代码*/
+  charb* ptr = sys_random_uuid();
+  if (sys_buf_valid(ptr)) {
+    showlog(ptr->data);
+  }
 
   /*external loop*/
   do_loop_end();

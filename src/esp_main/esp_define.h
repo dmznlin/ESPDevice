@@ -26,6 +26,12 @@
     }
     sys_buf_unlock(ptr);
   *.根据需要调整 sys_buffer_max,避免缓冲不够 或 内存爆满.
+  
+  *.缓冲区自动释放原理:
+    1.开始 loop,设置 sys_buffer_stamp 为不等于 0 的数
+    2.该 loop 内调用 sys_buf_lock 的数据都带有与 sys_buffer_stamp 相同标记
+    3.新 loop 开始, sys_buffer_stamp++, 缓冲区内带有上一 loop 的数据都会自动释放
+  *.依据原理: 只建议在局部变量使用自动释放,且只适用于基于 loop 的单任务模式.
 ********************************************************************************/
 #ifndef _esp_define__
 #define _esp_define__
@@ -55,6 +61,9 @@
 //运行时呼吸灯
 #define run_blinkled
 
+//启用缓冲自动释放
+#define buf_auto_unlock
+
 //global-------------------------------------------------------------------------
 //分隔符
 const char* split_tag = ";";
@@ -75,6 +84,10 @@ struct sys_buffer_item {
   void* val_ptr;  //pointer
   bool val_bool;  //bool
   bool used;      //是否使用
+
+  #ifdef buf_auto_unlock
+  uint16_t stamp; //释放标记
+  #endif
   charb* next;     //next-item
 }; 
 
@@ -83,6 +96,11 @@ byte sys_buffer_size = 0;
 const byte sys_buffer_max = 100;
 //全局缓冲数据
 charb* sys_data_buffer = NULL;
+
+#ifdef buf_auto_unlock
+//当前有效的缓冲标记
+uint16_t sys_buffer_stamp = 1;
+#endif
 
 //WiFi---------------------------------------------------------------------------
 #ifdef wifi_enabled

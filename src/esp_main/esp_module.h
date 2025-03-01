@@ -35,7 +35,7 @@ charb* sys_random_uuid() {
   ESP8266TrueRandom.uuid(num);
   String str = ESP8266TrueRandom.uuidToString(num);
 
-  charb* ret = sys_buf_lock(str.length() + 1);
+  charb* ret = sys_buf_lock(str.length() + 1, true);
   if (sys_buf_valid(ret)) {
     strcpy(ret->data, str.c_str());
   }
@@ -93,7 +93,7 @@ charb* ini_errmsg(uint8_t code){
   desc: 读取ini配置文件中的值
 */
 charb* ini_getval(const char* sec, const char* key, const char* def = "") {
-  charb* ret = sys_buf_lock(ini_val_len);
+  charb* ret = sys_buf_lock(ini_val_len, true);
   if (sys_buf_invalid(ret)) {
     showlog("ini_getval: lock buffer failure");
     return NULL;
@@ -511,6 +511,13 @@ void do_setup_end() {
   desc: 在loop开始时执行业务
 */
 bool do_loop_begin() {
+  #ifdef buf_auto_unlock
+  sys_buffer_stamp++;
+  if (sys_buffer_stamp < 1) {
+    sys_buffer_stamp = 1;
+  }
+  #endif
+
   #ifdef run_blinkled
   if (led_bright_start == 0) { //亮灯循环开始
     led_bright_start = GetTickCount(false);
