@@ -218,7 +218,7 @@ void mqtt_send(const char* data, bool retained = false) {
     sys_buf_unlock(item);
   }
 
-  item = sys_buf_lock(data_len);
+  item = sys_buf_lock(data_len + 1);
   if (!sys_buf_valid(item)) {
     Serial.println("mqtt_send: lock data failed");
     return;

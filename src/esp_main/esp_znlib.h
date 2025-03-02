@@ -154,11 +154,12 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
         4.防火墙: 每 10 个,会有一个 512;每 50 个,会有一个 1024
       */
       if (sys_buffer_size > 0) {
-        if (sys_buffer_size % 10 == 0) {
-          len_data = 512;
-        }
-        else if (sys_buffer_size % 50 == 0) {
+        if (sys_buffer_size % 100 == 0) {
+          len_data = 2048;
+        } else if (sys_buffer_size % 50 == 0) {
           len_data = 1024;
+        } else if (sys_buffer_size % 10 == 0) {
+          len_data = 512;
         }
       }
 

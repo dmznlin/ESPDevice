@@ -99,7 +99,7 @@ byte sys_buffer_size = 0;
 //当前被锁定item个数
 byte sys_buffer_locked = 0;
 //全局缓冲区item个数上限
-const byte sys_buffer_max = 100;
+const byte sys_buffer_max = 120;
 
 #ifdef buf_auto_unlock
 //当前有效的缓冲标记
