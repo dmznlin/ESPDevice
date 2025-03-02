@@ -105,7 +105,7 @@ charb* ini_getval(const char* sec, const char* key, const char* def = "") {
     showlog(event, 3);
     strcpy(ret->data, def); //default value
     return ret;
-  }  
+  }
 
   charb* msg;
   if (!ini_file.validate(ret->data, ini_val_len)) { //键值超长
@@ -150,13 +150,13 @@ void mqtt_conn_broker() {
 
   if (mqtt_server_user != NULL) {
     #ifdef debug_enabled
-    Serial.println("mqtt_conn_broker: " + String(mqtt_client_id) + " - " + 
+    Serial.println("mqtt_conn_broker: " + String(mqtt_client_id) + " - " +
       String(mqtt_server_user) + String(mqtt_server_pwd));
-    #endif 
+    #endif
 
     #ifdef mqtt_online
     //do conn
-    is_conn = mqtt_client.connect(mqtt_client_id, mqtt_server_user, mqtt_server_pwd, 
+    is_conn = mqtt_client.connect(mqtt_client_id, mqtt_server_user, mqtt_server_pwd,
       mqtt_topic_log, 2, true, mqtt_server_willmsg);
     #else
     //do conn
@@ -165,12 +165,12 @@ void mqtt_conn_broker() {
   } else {
     #ifdef debug_enabled
     Serial.println("mqtt_conn_broker: " + String(mqtt_client_id));
-    #endif 
+    #endif
 
     #ifdef mqtt_online
     //do conn
     is_conn = mqtt_client.connect(mqtt_client_id, mqtt_topic_log, 2, true, mqtt_server_willmsg);
-    #else 
+    #else
     //do conn
     is_conn = mqtt_client.connect(mqtt_client_id);
     #endif
@@ -195,7 +195,7 @@ void mqtt_conn_broker() {
   #endif
 
   #ifdef debug_enabled
-  Serial.println("mqtt_conn_broker: subscribe " + String(mqtt_topic_cmd) + " " + 
+  Serial.println("mqtt_conn_broker: subscribe " + String(mqtt_topic_cmd) + " " +
     String(mqtt_topic_cmd_qos));
   #endif
   mqtt_client.subscribe(mqtt_topic_cmd, mqtt_topic_cmd_qos);
@@ -211,7 +211,7 @@ void mqtt_send(const char* data, bool retained = false) {
   if (!mqtt_client.connected() || data_len < 1) {
     return;
   }
-    
+
   charb* item;
   if (mqtt_send_buffer.isFull()) {
     mqtt_send_buffer.lockedPop(item);
@@ -247,7 +247,7 @@ bool wifi_config_by_web() {
   }
 
   //手动---------------------------------------------------
-  #ifdef wifi_manualconfig  
+  #ifdef wifi_manualconfig
     //设置为无线终端模式
     WiFi.mode(WIFI_STA);
 
@@ -278,7 +278,7 @@ bool wifi_config_by_web() {
   #endif
 
   //自动 + FS----------------------------------------------
-  #ifdef wifi_fs_autoconfig  
+  #ifdef wifi_fs_autoconfig
     if (!lfs_isok) {
       showlog("LittleFS error!");
       return false;
@@ -310,11 +310,11 @@ bool wifi_config_by_web() {
       if (str_topic_log.equals(str_null) || str_topic_log.length() == 0) {
         str_topic_log = "esp/log/" + dev_id;
       }
-              
+
       String mqtt_str;
       //server ip
       str2char(split_val(str_server, "ip"), mqtt_server_ip);
-      if (mqtt_server_ip == NULL) {        
+      if (mqtt_server_ip == NULL) {
         //only ip
         str2char(str_server, mqtt_server_ip);
       } else {
@@ -349,7 +349,7 @@ bool wifi_config_by_web() {
       //topic log
       str2char(str_topic_log, mqtt_topic_log);
       //client id
-      str2char(str_clientID, mqtt_client_id);   
+      str2char(str_clientID, mqtt_client_id);
       //will message
       str2char(split_val(str_server, "wmsg", "offline"), mqtt_server_willmsg);
     #endif
@@ -422,7 +422,7 @@ bool wifi_config_by_web() {
   //结果---------------------------------------------------
   //check status
   wifi_isok = WiFi.status() == WL_CONNECTED;
-  
+
   #ifdef wifi_fs_autoconfig
   Serial.print("\nESP Server On: ");
   Serial.println(local);
@@ -528,7 +528,7 @@ bool do_loop_begin() {
   }
   #endif
 
-  #ifdef wifi_fs_autoconfig  
+  #ifdef wifi_fs_autoconfig
   if (wifi_fs_server.getCaptivePortal()) {
     wifi_fs_server.updateDNS();
     return false;
@@ -558,14 +558,16 @@ void do_loop_end() {
 
     String info = "\nBufferSize: ";
       info.concat(sys_buffer_size);
+      info.concat("\nBufferLocked: ");
+      info.concat(sys_buffer_locked);
       info.concat("\nHeapFree: ");
       info.concat(size_heap_now);
       info.concat("\nHeapFreeChange: ");
-      info.concat(int32_t(size_heap_now - size_heap_last));      
+      info.concat(int32_t(size_heap_now - size_heap_last));
       info.concat("\nHeapFragmentation: ");
       info.concat(ESP.getHeapFragmentation());
       info.concat("\nMaxFreeBlockSize: ");
-      info.concat(ESP.getMaxFreeBlockSize()); 
+      info.concat(ESP.getMaxFreeBlockSize());
 
       #ifdef ntp_enabled
       info.concat("\nTimeNow: ");
@@ -577,7 +579,7 @@ void do_loop_end() {
       info.concat(ESP.getSdkVersion());
     showlog(info.c_str());
 
-    //last 
+    //last
     size_heap_last = size_heap_now;
   }
   #endif
@@ -595,9 +597,9 @@ void do_loop_end() {
       sys_buf_unlock(item);
     }
   }
-  #endif   
+  #endif
 
-  #ifdef run_blinkled  
+  #ifdef run_blinkled
   uint64_t diff = GetTickcountDiff(led_bright_start);
   if (diff <= 0 || diff >= led_bright_len) { //亮灯时间结束
     led_bright_start = 0;
@@ -607,7 +609,7 @@ void do_loop_end() {
   //本次需达到的亮度表索引: diff/led_bright_len为时间进度
   byte idx = (diff * led_bright_tableSize / led_bright_len);
 
-  if (idx != led_bright_tableIndex && idx >= 0 && idx < led_bright_tableSize) {    
+  if (idx != led_bright_tableIndex && idx >= 0 && idx < led_bright_tableSize) {
     if (idx >= led_bright_tableIndex + 3) {
       //计算与上次的索引差,若较大则补3个delay
       byte inc_idx = (idx - led_bright_tableIndex) / 3;

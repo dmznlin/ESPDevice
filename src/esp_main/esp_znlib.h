@@ -46,7 +46,7 @@ charb* sys_buf_new() {
   charb* item = (charb*)malloc(sizeof(charb));
   if (!item) {
     showlog("buf_new: malloc failed");
-    return item;
+    return NULL;
   }
 
   item->type = 0;
@@ -88,8 +88,8 @@ inline bool sys_buf_invalid(charb* item) {
   parm: 数据长度;自动释放
   desc: 从缓冲区中锁定满足长度为len的项
 */
-charb* sys_buf_lock(byte len_data, bool auto_unlock = false) {
-  if (len_data < 1 || len_data > UINT8_MAX) {
+charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
+  if (len_data < 1 || len_data > 2048) { //1-2k
     return NULL;
   }
 
@@ -107,6 +107,7 @@ charb* sys_buf_lock(byte len_data, bool auto_unlock = false) {
     if (tmp->stamp != 0 && tmp->stamp != sys_buffer_stamp) { //自动解锁
       tmp->used = false;
       tmp->stamp = 0;
+      sys_buffer_locked--;
     }
     #endif
 
@@ -143,14 +144,39 @@ charb* sys_buf_lock(byte len_data, bool auto_unlock = false) {
       #endif
     }
   }
-  
+
   if (item != NULL) { //命中项
     if (item->len < 1) { //未申请空间
+      /*
+        1.缓冲大小,正常会从小 -> 到大.
+        2.项越多,检索越慢.
+        3.申请空间时,会尽量按大的申请.
+        4.防火墙: 每 10 个,会有一个 512;每 50 个,会有一个 1024
+      */
+      if (sys_buffer_size > 0) {
+        if (sys_buffer_size % 10 == 0) {
+          len_data = 512;
+        }
+        else if (sys_buffer_size % 50 == 0) {
+          len_data = 1024;
+        }
+      }
+
+      if (len_data < 10) {
+        len_data = len_data * 5;
+      }
+      else if (len_data < 50) {
+        len_data = len_data * 3;
+      }
+      else if (len_data < 100) {
+        len_data = len_data * 2;
+      }
+
       item->data = (char*)malloc(len_data);
       if (item->data != NULL) {
         item->len = len_data;
       }
-    } else if (item->len < len_data) { //长度不够重新分配      
+    } else if (item->len < len_data) { //长度不够重新分配
       #ifdef debug_enabled
       byte old_len = item->len;
       #endif
@@ -173,12 +199,13 @@ charb* sys_buf_lock(byte len_data, bool auto_unlock = false) {
     }
 
     if (item->data != NULL) {
-      item->used = true; //锁定
-
       #ifdef buf_auto_unlock
       if (auto_unlock) { //自动释放标记
         item->stamp = sys_buffer_stamp;
       }
+
+      item->used = true; //锁定
+      sys_buffer_locked++;
       #endif
     }
   }
@@ -199,6 +226,7 @@ void sys_buf_unlock(charb* item) {
   if (item != NULL) {
     noInterrupts();//sync-lock
     item->used = false;
+    sys_buffer_locked--;
 
     #ifdef buf_auto_unlock
     item->stamp = 0;
@@ -213,7 +241,11 @@ void sys_buf_unlock(charb* item) {
   desc: 生成内容为str的buf项
 */
 charb* sys_buf_fill(const char* str) {
-  charb* ret = sys_buf_lock(strlen(str), true);
+  if (str == NULL) {
+    return NULL;
+  }
+
+  charb* ret = sys_buf_lock(strlen(str) + 1, true);
   if (sys_buf_valid(ret)) {
     strcpy(ret->data, str);
   }
@@ -236,7 +268,7 @@ charb* sys_buf_concat(const char* str[], const uint8_t size) {
       total_len += strlen(str[idx]);
     }
   }
-    
+
   if (total_len < 1) { //nothing
     return NULL;
   }
@@ -257,6 +289,26 @@ charb* sys_buf_concat(const char* str[], const uint8_t size) {
 
   ret->data[offset] = '\0';
   return ret;
+}
+
+/*
+  date: 2025-03-02 11:43:20
+  desc: 显示缓冲区内存申请状态
+*/
+charb* sys_buf_status() {
+  noInterrupts();//sync-lock
+  String status = "";
+  charb* tmp = sys_data_buffer;
+
+  while (tmp != NULL)
+  {
+    status.concat(tmp->len);
+    status.concat(" ");
+    tmp = tmp->next;
+  }
+
+  interrupts(); //unlock
+  return sys_buf_fill(status.c_str());
 }
 
 // showlog-----------------------------------------------------------------------

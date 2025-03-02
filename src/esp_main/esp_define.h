@@ -17,7 +17,7 @@
 
   *.启用ntp_enabled时,需wifi_fs_autoconfig提供文件系统存取ntp参数.
   *.ntp_server: ntp=x.x.x.x;zone=8;update=30 按需填写
-  
+
   *.数据缓冲区: sys_buf_lock 与 sys_buf_unlock 需成对出现.
   *.所有 charb(char_in_buffer) 使用完毕后需要调用 sys_buf_unlock 释放.如:
     charb* ptr = sys_uuid();
@@ -26,7 +26,7 @@
     }
     sys_buf_unlock(ptr);
   *.根据需要调整 sys_buffer_max,避免缓冲不够 或 内存爆满.
-  
+
   *.缓冲区自动释放原理:
     1.开始 loop,设置 sys_buffer_stamp 为不等于 0 的数
     2.该 loop 内调用 sys_buf_lock 的数据都带有与 sys_buffer_stamp 相同标记
@@ -76,9 +76,9 @@ const char* dev_name = "esp_8266";
 
 //系统缓冲区: char-in-buffer
 #define charb sys_buffer_item
-struct sys_buffer_item {  
+struct sys_buffer_item {
   byte type;      //类型
-  byte len;       //长度  
+  uint16_t len;   //长度
   char* data;     //数据
 
   void* val_ptr;  //pointer
@@ -89,13 +89,17 @@ struct sys_buffer_item {
   uint16_t stamp; //释放标记
   #endif
   charb* next;     //next-item
-}; 
+};
 
-//全局缓冲大小
-byte sys_buffer_size = 0;
-const byte sys_buffer_max = 100;
-//全局缓冲数据
+//全局系统缓冲区
 charb* sys_data_buffer = NULL;
+
+//当前缓冲区item个数
+byte sys_buffer_size = 0;
+//当前被锁定item个数
+byte sys_buffer_locked = 0;
+//全局缓冲区item个数上限
+const byte sys_buffer_max = 100;
 
 #ifdef buf_auto_unlock
 //当前有效的缓冲标记
@@ -139,13 +143,13 @@ uint16_t sys_buffer_stamp = 1;
   #define lfs_enabled
 
   //文件系统(启动)正常
-  bool lfs_isok = false; 
+  bool lfs_isok = false;
 #endif
 
 #ifdef wifi_fs_autoconfig
   //单选
   #undef wifi_autoconfig
-  #undef wifi_manualconfig    
+  #undef wifi_manualconfig
   #include <AsyncFsWebServer.h>
 
   //server for wifi config
@@ -166,13 +170,13 @@ uint16_t sys_buffer_stamp = 1;
 
 //MQTT---------------------------------------------------------------------------
 #ifndef wifi_fs_autoconfig
-  //need wifi&fs   
+  //need wifi&fs
   #undef mqtt_enabled
-#endif 
+#endif
 
 #ifdef mqtt_enabled
   #include <PubSubClient.h>
-  #include <RingBuf.h>  
+  #include <RingBuf.h>
 
   //向mqtt打印日志
   #define mqtt_showlog
@@ -192,7 +196,7 @@ uint16_t sys_buffer_stamp = 1;
   const char* mqtt_client_id = NULL; //id
   const char* mqtt_topic_cmd = NULL; //主题:接收指令
   const char* mqtt_topic_log = NULL; //主题:发送日志
-  
+
   byte mqtt_topic_cmd_qos = 0;
   uint16_t mqtt_server_port = 1883;
 
@@ -204,7 +208,7 @@ uint16_t sys_buffer_stamp = 1;
   WiFiClient mqtt_wifi_client;
   PubSubClient mqtt_client(mqtt_wifi_client);
 
-  //callback on mqtt received data  
+  //callback on mqtt received data
   typedef void (*cb_mqtt_on_data)(char*, uint8_t*, unsigned int);
   cb_mqtt_on_data mqtt_on_data = NULL;
 
@@ -215,9 +219,9 @@ uint16_t sys_buffer_stamp = 1;
 
 //NTP----------------------------------------------------------------------------
 #ifndef wifi_fs_autoconfig
-  //need wifi&fs   
+  //need wifi&fs
   #undef ntp_enabled
-#endif 
+#endif
 
 #ifdef ntp_enabled
   #include <NTPClient.h>
@@ -239,7 +243,7 @@ uint16_t sys_buffer_stamp = 1;
   //key=value,value最大长度
   const byte ini_val_len = 128;
   //配置文件
-  const char* ini_filename = "/config/config.txt";  
+  const char* ini_filename = "/config/config.txt";
 #endif
 
 
@@ -277,11 +281,11 @@ uint16_t sys_buffer_stamp = 1;
 
   //呼吸值表
   const uint16_t led_bright_table[] = {621, 646, 671, 696, 721, 745, 769, 792, 814, 836,
-    857, 877, 896, 914, 930, 946, 960, 973, 984, 994, 1003, 1010, 1015, 1019, 1022, 1023, 
-    1022, 1019, 1015, 1010, 1003, 994, 984, 973, 960, 946, 930, 914, 896, 877, 857, 
-    836, 814, 792, 769, 745, 721, 696, 671, 646, 621, 596, 571, 546, 521, 497, 473, 
-    450, 428, 406, 385, 365, 346, 328, 312, 296, 282, 269, 258, 248, 239, 232, 227, 
-    223, 220, 220, 220, 223, 227, 232, 239, 248, 258, 269, 282, 296, 312, 328, 346, 
+    857, 877, 896, 914, 930, 946, 960, 973, 984, 994, 1003, 1010, 1015, 1019, 1022, 1023,
+    1022, 1019, 1015, 1010, 1003, 994, 984, 973, 960, 946, 930, 914, 896, 877, 857,
+    836, 814, 792, 769, 745, 721, 696, 671, 646, 621, 596, 571, 546, 521, 497, 473,
+    450, 428, 406, 385, 365, 346, 328, 312, 296, 282, 269, 258, 248, 239, 232, 227,
+    223, 220, 220, 220, 223, 227, 232, 239, 248, 258, 269, 282, 296, 312, 328, 346,
     365, 385, 406, 428, 450, 473, 497, 521, 546, 571, 596
   };
 
