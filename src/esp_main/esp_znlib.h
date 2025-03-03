@@ -49,7 +49,7 @@ charb* sys_buf_new() {
     return NULL;
   }
 
-  item->type = 0;
+  item->data_type = 0;
   item->data = NULL;
   item->len = 0;
   item->next = NULL;
@@ -85,10 +85,10 @@ inline bool sys_buf_invalid(charb* item) {
 
 /*
   date: 2025-02-24 22:11:02
-  parm: 数据长度;自动释放
+  parm: 数据长度;自动释放;类型
   desc: 从缓冲区中锁定满足长度为len的项
 */
-charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
+charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type = 0) {
   if (len_data < 1 || len_data > 2048) { //1-2k
     return NULL;
   }
@@ -112,7 +112,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
     #endif
 
     item_last = tmp;
-    if (tmp->used) { //使用中
+    if (tmp->used || tmp->data_type != data_type) { //使用中,类型不匹配
       tmp = tmp->next;
       continue;
     }
@@ -147,30 +147,33 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
 
   if (item != NULL) { //命中项
     if (item->len < 1) { //未申请空间
-      /*
-        1.缓冲大小,正常会从小 -> 到大.
-        2.项越多,检索越慢.
-        3.申请空间时,会尽量按大的申请.
-        4.防火墙: 每 10 个,会有一个 512;每 50 个,会有一个 1024
-      */
-      if (sys_buffer_size > 0) {
-        if (sys_buffer_size % 100 == 0) {
-          len_data = 2048;
-        } else if (sys_buffer_size % 50 == 0) {
-          len_data = 1024;
-        } else if (sys_buffer_size % 10 == 0) {
-          len_data = 512;
+      if (data_type == 0) { //不带类型按大的申请,带类型的按需分配
+        /*
+          1.缓冲大小,正常会从小 -> 到大.
+          2.项越多,检索越慢.
+          3.防火墙: 每 10 个,会有一个 512;每 50 个,会有一个 1024
+        */
+        if (sys_buffer_size > 0) {
+          if (sys_buffer_size % 100 == 0) {
+            len_data = 2048;
+          }
+          else if (sys_buffer_size % 50 == 0) {
+            len_data = 1024;
+          }
+          else if (sys_buffer_size % 10 == 0) {
+            len_data = 512;
+          }
         }
-      }
 
-      if (len_data < 10) {
-        len_data = len_data * 5;
-      }
-      else if (len_data < 50) {
-        len_data = len_data * 3;
-      }
-      else if (len_data < 100) {
-        len_data = len_data * 2;
+        if (len_data < 10) {
+          len_data = len_data * 5;
+        }
+        else if (len_data < 50) {
+          len_data = len_data * 3;
+        }
+        else if (len_data < 100) {
+          len_data = len_data * 2;
+        }
       }
 
       item->data = (char*)malloc(len_data);
@@ -206,6 +209,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
       }
 
       item->used = true; //锁定
+      item->data_type = data_type;
       sys_buffer_locked++;
       #endif
     }
@@ -220,13 +224,14 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false) {
 
 /*
   date: 2025-02-24 22:14:02
-  parm: 数据
+  parm: 数据;重置类型
   desc: 释放数据使其可用
 */
-void sys_buf_unlock(charb* item) {
+void sys_buf_unlock(charb* item, bool reset_type = false) {
   if (item != NULL) {
     noInterrupts();//sync-lock
     item->used = false;
+    if (reset_type) item->data_type = 0;
     sys_buffer_locked--;
 
     #ifdef buf_auto_unlock
@@ -343,7 +348,7 @@ void showlog(const char* event) {
 
 /*
   date: 2025-03-01 23:47:20
-  parm: 日志数组
+  parm: 日志数组;数组大小
   desc: 向控制台和mqtt发送日志
 */
 void showlog(const char* event[], const uint8_t size) {

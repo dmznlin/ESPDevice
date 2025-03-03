@@ -32,6 +32,17 @@
     2.该 loop 内调用 sys_buf_lock 的数据都带有与 sys_buffer_stamp 相同标记
     3.新 loop 开始, sys_buffer_stamp++, 缓冲区内带有上一 loop 的数据都会自动释放
   *.依据原理: 只建议在局部变量使用自动释放,且只适用于基于 loop 的单任务模式.
+  *.缓冲区支持带类型的指针,如:
+    charb* ptr = sys_buf_lock(10, true, 1); //type=1
+    if (sys_buf_valid(ptr)) {
+      if (!ptr->val_ptr) {
+        ptr->val_ptr = (void*)malloc(sizeof(uint16_t));
+        *(uint16*)ptr->val_ptr = 1024;
+        showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
+      } else {
+        showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
+      }
+    }
 ********************************************************************************/
 #ifndef _esp_define__
 #define _esp_define__
@@ -55,6 +66,12 @@
 //启用ini
 #define ini_enabled
 
+//启用串口
+#define com_enabled
+
+//启用modbus
+#define modbus_enabled
+
 //运行监控
 #define run_status
 
@@ -77,7 +94,7 @@ const char* dev_name = "esp_8266";
 //系统缓冲区: char-in-buffer
 #define charb sys_buffer_item
 struct sys_buffer_item {
-  byte type;      //类型
+  byte data_type; //类型
   uint16_t len;   //长度
   char* data;     //数据
 
