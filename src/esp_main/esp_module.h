@@ -237,10 +237,12 @@ void mqtt_send(const char* data, bool retained = false) {
   desc: 提供用户配置wifi的入口
 */
 bool wifi_config_by_web() {
-  //build id
-  dev_id = WiFi.macAddress();
-  dev_id.replace(":", "");
-  dev_id.toLowerCase();
+  if (strcmp(dev_id, "000000") == 0) { //build id
+    String id = WiFi.macAddress();
+    id.replace(":", "");
+    id.toLowerCase();
+    str2char(id, dev_id, false);
+  }
 
   if (wifi_on_serverInit != NULL) {
     wifi_on_serverInit(step_init_begin);
@@ -480,6 +482,45 @@ bool do_setup_begin() {
   }
   #endif
 
+  #ifdef ini_enabled
+  charb* ptr = ini_getval("system", "dev_name");
+  if (sys_buf_valid(ptr)) {
+    str2char(ptr->data, dev_name, false);
+    sys_buf_unlock(ptr);
+  }
+
+  ptr = ini_getval("system", "dev_id");
+  if (sys_buf_valid(ptr)) {
+    str2char(ptr->data, dev_id, false);
+    sys_buf_unlock(ptr);
+  }
+
+  ptr = ini_getval("performance", "sys_buffer_max");
+  if (sys_buf_valid(ptr)) {
+    byte val = atoi(ptr->data);
+    if (val > 0) sys_buffer_max = val;
+    sys_buf_unlock(ptr);
+  }
+
+  #ifdef sys_auto_delay
+    ptr = ini_getval("performance", "sys_loop_interval");
+    if (sys_buf_valid(ptr)) {
+      byte val = atoi(ptr->data);
+      if (val > 0) sys_loop_interval = val;
+      sys_buf_unlock(ptr);
+    }
+  #endif
+
+  #ifdef run_status
+    ptr = ini_getval("performance", "run_status_update");
+    if (sys_buf_valid(ptr)) {
+      byte val = atoi(ptr->data);
+      if (val > 0) run_status_update = val;
+      sys_buf_unlock(ptr);
+    }
+  #endif
+  #endif
+
   return true;
 }
 
@@ -514,6 +555,10 @@ void do_setup_end() {
   desc: 在loop开始时执行业务
 */
 bool do_loop_begin() {
+  #ifdef sys_auto_delay
+  sys_loop_start = GetTickCount(false);
+  #endif
+
   #ifdef buf_auto_unlock
   sys_buffer_stamp++;
   if (sys_buffer_stamp < 1) {
@@ -549,7 +594,7 @@ bool do_loop_begin() {
 */
 void do_loop_end() {
   #ifdef run_status
-  if (GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
+  if (run_status_update > 0 && GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
     //update tickcount
     run_status_lastsend = GetTickCount(false);
 
@@ -624,6 +669,15 @@ void do_loop_end() {
 
     //idx已写入
     led_bright_tableIndex = idx + 1;
+  }
+  #endif
+
+  #ifdef sys_auto_delay
+  if (sys_loop_interval > 0){
+    uint64_t loop_delay = GetTickcountDiff(sys_loop_start);
+    if (loop_delay < sys_loop_interval) {
+      delay(sys_loop_interval - loop_delay);
+    }
   }
   #endif
 }

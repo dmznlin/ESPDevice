@@ -81,6 +81,9 @@
 //启用缓冲自动释放
 #define buf_auto_unlock
 
+//启用自动降速
+#define sys_auto_delay
+
 //global-------------------------------------------------------------------------
 //分隔符
 const char* split_tag = ";";
@@ -90,6 +93,9 @@ const char* str_null = "null";
 
 //设备名称
 const char* dev_name = "esp_8266";
+
+//设备标识(MAC)
+const char* dev_id = "000000";
 
 //系统缓冲区: char-in-buffer
 #define charb sys_buffer_item
@@ -116,7 +122,7 @@ byte sys_buffer_size = 0;
 //当前被锁定item个数
 byte sys_buffer_locked = 0;
 //全局缓冲区item个数上限
-const byte sys_buffer_max = 120;
+byte sys_buffer_max = 120;
 
 #ifdef buf_auto_unlock
 //当前有效的缓冲标记
@@ -138,9 +144,6 @@ uint16_t sys_buffer_stamp = 1;
 
   //手动配置WiFi
   #define wifi_manualconfig
-
-  //设备标识(MAC)
-  String dev_id = "";
 
   //WiFi是否连接
   bool wifi_isok = false;
@@ -260,7 +263,7 @@ uint16_t sys_buffer_stamp = 1;
   //key=value,value最大长度
   const byte ini_val_len = 128;
   //配置文件
-  const char* ini_filename = "/config/config.txt";
+  const char* ini_filename = "/config/config.csv";
 #endif
 
 
@@ -279,7 +282,7 @@ uint16_t sys_buffer_stamp = 1;
   uint32_t size_heap_now = 0;
 
   //刷新频率(秒)
-  const byte run_status_update = 30;
+  byte run_status_update = 30;
 #endif
 
 //呼吸灯-------------------------------------------------------------------------
@@ -324,6 +327,15 @@ print(", ".join(map(str, breathe_table)))
 print("};")
 
   */
+#endif
+
+//自动降速---------------------------------------------------------------------------
+#ifdef sys_auto_delay
+  //本次loop开始计时
+  uint64_t sys_loop_start = 0;
+
+  //单次loop最小耗时(毫秒)
+  byte sys_loop_interval = 50;
 #endif
 
 #endif

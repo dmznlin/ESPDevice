@@ -1,0 +1,16 @@
+[system]
+;设备名称
+dev_name=
+
+;设备标识
+dev_id=
+
+[performance]
+;全局缓冲区个数上限(0-255)
+sys_buffer_max=120
+
+;单次loop最小耗时(0-255毫秒)
+sys_loop_interval=50
+
+;运行状态刷新频率(0-255秒)
+run_status_update=30

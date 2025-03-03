@@ -15,7 +15,7 @@ void showlog(const char* event[], const uint8_t size);
   parm: 精确值
   desc: 开机后经过的计时
 */
-inline uint64_t GetTickCount(bool precise = true) {
+inline uint64_t GetTickCount(bool precise = false) {
   if (precise) {
     return micros();
   } else {
@@ -386,11 +386,11 @@ String split_val(const String& str, const String& keyname, const char* defval = 
 
 /*
   date: 2025-02-20 21:13:10
-  parm: 字符串;目标指针
+  parm: 字符串;目标指针;检查目标
   desc: 将字符串转换为常量字符串
 */
-void str2char(const String& str, const char*& dest) {
-  if (dest != NULL) {
+void str2char(const String& str, const char*& dest, bool check = true) {
+  if (check && dest != NULL) {
     free((void*)dest);
     dest = NULL;
   }
