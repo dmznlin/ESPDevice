@@ -45,96 +45,147 @@ charb* sys_random_uuid() {
 
 //INI----------------------------------------------------------------------------
 #ifdef ini_enabled
-charb* ini_errmsg(uint8_t code){
-  charb* ret = sys_buf_lock(30, true);
-  if (sys_buf_invalid(ret)) {
-    return NULL;
-  }
-
-  switch (code){
-  case IniFile::errorNoError:
-    strcpy(ret->data, "no error");
-    break;
-  case IniFile::errorFileNotFound:
-    strcpy(ret->data, "file not found");
-    break;
-  case IniFile::errorFileNotOpen:
-    strcpy(ret->data, "file not open");
-    break;
-  case IniFile::errorBufferTooSmall:
-    strcpy(ret->data, "buffer too small");
-    break;
-  case IniFile::errorSeekError:
-    strcpy(ret->data, "seek error");
-    break;
-  case IniFile::errorSectionNotFound:
-    strcpy(ret->data, "section not found");
-    break;
-  case IniFile::errorKeyNotFound:
-    strcpy(ret->data, "key not found");
-    break;
-  case IniFile::errorEndOfFile:
-    strcpy(ret->data, "end of file");
-    break;
-  case IniFile::errorUnknownError:
-    strcpy(ret->data, "unknown error");
-    break;
-  default:
-    strcpy(ret->data, "unknown error value");
-    break;
-  }
-
-  return ret;
-}
-
 /*
   date: 2025-02-26 15:06:05
   parm: 小节;键名;默认值
   desc: 读取ini配置文件中的值
 */
-charb* ini_getval(const char* sec, const char* key, const char* def = "") {
-  charb* ret = sys_buf_lock(ini_val_len, true);
-  if (sys_buf_invalid(ret)) {
-    showlog("ini_getval: lock buffer failure");
-    return NULL;
+String ini_getval(const String& sec, const String& key, const String& def = "") {
+  File file = LittleFS.open(ini_filename, "r");
+  if (!file) {
+    return def;
   }
 
-  IniFile ini_file(ini_filename, FILE_READ);
-  if (!ini_file.open()) {
-    const char* event[] = { "ini_getval: file ", ini_filename, "  does not exist" };
-    showlog(event, 3);
-    strcpy(ret->data, def); //default value
-    return ret;
-  }
+  bool sec_match = false;
+  String result = def;
 
-  charb* msg;
-  if (!ini_file.validate(ret->data, ini_val_len)) { //键值超长
-    msg = ini_errmsg(ini_file.getError());
-    if (sys_buf_valid(msg)) {
-      const char* event[] = { "ini_getval: file ", ini_filename, "  not valid,",  msg->data };
-      showlog(event, 4);
-      sys_buf_unlock(msg);
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim(); //两端空格
+
+    if (line.startsWith(";") || line.startsWith("[") || line.isEmpty()) { //注释行和空行
+      if (line.startsWith("[")) {
+        line = line.substring(1, line.indexOf("]"));
+        line.trim();
+        sec_match = line.equalsIgnoreCase(sec);
+      }
+      continue;
     }
 
-    strcpy(ret->data, def); //default value
-    ini_file.close();
-    return ret;
+    if (sec_match) { //当前小节
+      int idx = line.indexOf('=');
+      if (idx > 0) {
+        String k = line.substring(0, idx);
+        k.trim();
+
+        if (k.equalsIgnoreCase(key)) { //当前键
+          result = line.substring(idx + 1);
+          result.trim();
+          break;
+        }
+      }
+    }
   }
 
-  if (!ini_file.getValue(sec, key, ret->data, ini_val_len)) { //读取失败
-    msg = ini_errmsg(ini_file.getError());
-    if (sys_buf_valid(msg)) {
-      const char* event[] = { "ini_getval: read ", ini_filename, "  failure,",  msg->data };
-      showlog(event, 4);
-      sys_buf_unlock(msg);
+  file.close();
+  return result;
+}
+
+/*
+  date: 2025-03-04 10:57:05
+  parm: 小节;键名;值
+  desc: 写入ini配置文件中的值
+*/
+bool ini_setval(const String& sec, const String& key, const String& val) {
+  if (!LittleFS.exists(ini_filename)) { //create on new
+    File file = LittleFS.open(ini_filename, "w");
+    if (!file) {
+      showlog("ini_setval: create file failure");
+      return false;
     }
 
-    //default value
-    strcpy(ret->data, def);
+    file.println("[" + sec + "]");
+    file.println(key + "=" + val);
+
+    file.flush();
+    file.close();
+    return true;
   }
 
-  ini_file.close();
-  return ret;
+  File src = LittleFS.open(ini_filename, "r");
+  if (!src) {
+    showlog("ini_setval: open file failure");
+    return false;
+  }
+
+  String tmp = "/config.tmp"; //temp file
+  File dst = LittleFS.open(tmp, "w");
+  if (!dst) {
+    src.close();
+    showlog("ini_setval: write file failure");
+    return false;
+  }
+
+  bool sec_match = false;
+  bool key_match = false;
+
+  while (src.available()) {
+    String line = src.readStringUntil('\n');
+    line.trim(); //两端空格
+
+    if (sec_match && key_match) { //已修改完成
+      dst.println(line); //write all
+      continue;
+    }
+
+    if (line.startsWith(";") || line.startsWith("[") || line.isEmpty()) { //注释行和空行
+      if (line.startsWith("[")) {
+        if (sec_match) { //new section, add key first
+          dst.println(key + "=" + val);
+          dst.println();
+          key_match = true;
+        } else {
+          String sub = line.substring(1, line.indexOf("]"));
+          sub.trim();
+          sec_match = sub.equalsIgnoreCase(sec);
+        }
+      }
+
+      dst.println(line); //write section
+      continue;
+    }
+
+    if (sec_match && !key_match) {  //find key
+      int idx = line.indexOf('=');
+      if (idx > 0) {
+        String k = line.substring(0, idx);
+        k.trim();
+        key_match = k.equalsIgnoreCase(key);
+
+        if (key_match) {
+          line = key + "=" + val;
+        }
+      }
+    }
+
+    //write key-value
+    dst.println(line);
+  }
+
+  if (!key_match) { //未找到key
+    if (!sec_match) dst.println("[" + sec + "]");
+    dst.println(key + "=" + val);
+    dst.println();
+  }
+
+  dst.flush();
+  dst.close();
+  src.close(); //close all
+
+  if (LittleFS.remove(ini_filename)) { //delete first
+    return LittleFS.rename(tmp, ini_filename); //rename
+  }
+  return false;
 }
 #endif
 
@@ -302,15 +353,15 @@ bool wifi_config_by_web() {
       };
 
       if (str_clientID.equals(str_null) || str_clientID.length() == 0) {
-        str_clientID = "esp-" + dev_id;
+        str_clientID = "esp-" + String(dev_id);
       }
 
       if (str_topic_cmd.equals(str_null) || str_topic_cmd.length() == 0) {
-        str_topic_cmd = "esp/cmd/" + dev_id;
+        str_topic_cmd = "esp/cmd/" + String(dev_id);
       }
 
       if (str_topic_log.equals(str_null) || str_topic_log.length() == 0) {
-        str_topic_log = "esp/log/" + dev_id;
+        str_topic_log = "esp/log/" + String(dev_id);
       }
 
       String mqtt_str;
@@ -483,42 +534,33 @@ bool do_setup_begin() {
   #endif
 
   #ifdef ini_enabled
-  charb* ptr = ini_getval("system", "dev_name");
-  if (sys_buf_valid(ptr)) {
-    str2char(ptr->data, dev_name, false);
-    sys_buf_unlock(ptr);
-  }
+    String cfg = ini_getval("system", "dev_name");
+    if (cfg.length() > 0) str2char(cfg, dev_name, false);
 
-  ptr = ini_getval("system", "dev_id");
-  if (sys_buf_valid(ptr)) {
-    str2char(ptr->data, dev_id, false);
-    sys_buf_unlock(ptr);
-  }
+    cfg = ini_getval("system", "dev_id");
+    if (cfg.length() > 0) str2char(cfg, dev_id, false);
 
-  ptr = ini_getval("performance", "sys_buffer_max");
-  if (sys_buf_valid(ptr)) {
-    byte val = atoi(ptr->data);
-    if (val > 0) sys_buffer_max = val;
-    sys_buf_unlock(ptr);
-  }
-
-  #ifdef sys_auto_delay
-    ptr = ini_getval("performance", "sys_loop_interval");
-    if (sys_buf_valid(ptr)) {
-      byte val = atoi(ptr->data);
-      if (val > 0) sys_loop_interval = val;
-      sys_buf_unlock(ptr);
+    cfg = ini_getval("performance", "sys_buffer_max");
+    if (cfg.length() > 0) {
+      long val = cfg.toInt();
+      if (val > 0 && val < UINT8_MAX) sys_buffer_max = val;
     }
-  #endif
 
-  #ifdef run_status
-    ptr = ini_getval("performance", "run_status_update");
-    if (sys_buf_valid(ptr)) {
-      byte val = atoi(ptr->data);
-      if (val > 0) run_status_update = val;
-      sys_buf_unlock(ptr);
-    }
-  #endif
+    #ifdef sys_auto_delay
+      cfg = ini_getval("performance", "sys_loop_interval");
+      if (cfg.length() > 0) {
+        long val = cfg.toInt();
+        if (val > 0 && val < UINT8_MAX) sys_loop_interval = val;
+      }
+    #endif
+
+    #ifdef run_status
+      cfg = ini_getval("performance", "run_status_update");
+      if (cfg.length() > 0) {
+        long val = cfg.toInt();
+        if (val > 0 && val < UINT8_MAX) run_status_update = val;
+      }
+    #endif
   #endif
 
   return true;

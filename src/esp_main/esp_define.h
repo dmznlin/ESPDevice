@@ -258,14 +258,9 @@ uint16_t sys_buffer_stamp = 1;
 
 //INI----------------------------------------------------------------------------
 #ifdef ini_enabled
-  #include <IniFile.h>
-
-  //key=value,value最大长度
-  const byte ini_val_len = 128;
   //配置文件
   const char* ini_filename = "/config/config.csv";
 #endif
-
 
 //随机数-------------------------------------------------------------------------
 #ifdef random_enabled
