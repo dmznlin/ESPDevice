@@ -407,4 +407,44 @@ void str2char(const String& str, const char*& dest, bool check = true) {
   }
 }
 
+//编码&加密----------------------------------------------------------------------
+/*
+  date: 2025-03-05 09:04:10
+  parm: 数据
+  desc: 计算data的md5值
+*/
+charb* str_md5(const char* data) {
+  size_t len = strlen(data);
+  if (len < 1) return NULL;
+
+  uint8_t md5Bytes[br_md5_SIZE];
+  br_md5_context md5Context;
+
+  // 初始化 MD5 上下文
+  br_md5_init(&md5Context);
+  // 输入数据进行计算
+  br_md5_update(&md5Context, (const void*)data, len);
+  // 输出结果到 md5Bytes 数组
+  br_md5_out(&md5Context, md5Bytes);
+
+  charb* ret = sys_buf_lock(br_md5_SIZE * 2 + 1, true);
+  if (sys_buf_invalid(ret)) return NULL;
+  byte cur = 0;
+
+  //hex char
+  const char hex[] = "0123456789abcdef";
+
+  for (int i = 0; i < br_md5_SIZE; i++) {
+    byte b = md5Bytes[i];
+    byte high = (b >> 4);
+    byte low = (b & 0xF);
+
+    ret->data[cur++] = hex[b >> 4]; //高4位
+    ret->data[cur++] = hex[b & 0x0F]; //低4位
+  }
+
+  ret->data[cur] = '\0';
+  return ret;
+}
+
 #endif
