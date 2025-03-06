@@ -258,10 +258,9 @@ void mqtt_conn_broker() {
   desc: 将data写入mqtt发送缓冲
 */
 void mqtt_send(const char* data, bool retained = false) {
+  if (data == NULL) return;
   size_t data_len = strlen(data);
-  if (!mqtt_client.connected() || data_len < 1) {
-    return;
-  }
+  if (data_len < 1 || !mqtt_client.connected())  return;
 
   charb* item;
   if (mqtt_send_buffer.isFull()) {

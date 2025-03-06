@@ -408,12 +408,14 @@ void str2char(const String& str, const char*& dest, bool check = true) {
 }
 
 //编码&加密----------------------------------------------------------------------
+#ifdef md5_enabled
 /*
   date: 2025-03-05 09:04:10
   parm: 数据
   desc: 计算data的md5值
 */
 charb* str_md5(const char* data) {
+  if (data == NULL) return NULL;
   size_t len = strlen(data);
   if (len < 1) return NULL;
 
@@ -446,5 +448,68 @@ charb* str_md5(const char* data) {
   ret->data[cur] = '\0';
   return ret;
 }
+#endif
+
+#ifdef crc_enabled
+/*
+  date: 2025-03-06 09:27:05
+  parm: 数据
+  desc: 计算data的crc8
+*/
+charb* str_crc8(const char* data) {
+  if (data == NULL) return NULL;
+  size_t len = strlen(data);
+  if (len < 1) return NULL;
+
+  charb* ret = sys_buf_lock(2 + 1, true); //2 + \0
+  if (sys_buf_valid(ret)) {
+    uint8_t crc = calcCRC8((const uint8_t*)data, len); //CRC-8
+    snprintf(ret->data, 3, "%02x", crc);
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-03-06 10:18:05
+  parm: 数据
+  desc: 计算data的crc16
+*/
+charb* str_crc16(const char* data) {
+  if (data == NULL) return NULL;
+  size_t len = strlen(data);
+  if (len < 1) return NULL;
+
+  charb* ret = sys_buf_lock(4 + 1, true); //4 + \0
+  if (sys_buf_valid(ret)) {
+    uint16_t crc = calcCRC16((const uint8_t*)data, len,
+      CRC16_ARC_POLYNOME, CRC16_ARC_INITIAL, CRC16_ARC_XOR_OUT,
+      CRC16_ARC_REV_IN, CRC16_ARC_REV_OUT); //CRC-16-IBM
+    snprintf(ret->data, 5, "%04x", crc);
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-03-06 10:18:05
+  parm: 数据
+  desc: 计算data的crc16
+*/
+charb* str_crc32(const char* data) {
+  if (data == NULL) return NULL;
+  size_t len = strlen(data);
+  if (len < 1) return NULL;
+
+  charb* ret = sys_buf_lock(8 + 1, true); //8 + \0
+  if (sys_buf_valid(ret)) {
+    uint32_t crc = calcCRC32((const uint8_t*)data, len); //CRC-32
+    snprintf(ret->data, 9, "%08x", crc);
+  }
+
+  return ret;
+}
+#endif
+
 
 #endif

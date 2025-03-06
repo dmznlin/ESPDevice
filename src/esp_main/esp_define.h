@@ -66,6 +66,12 @@
 //启用ini
 #define ini_enabled
 
+//启用crc
+//#define crc_enabled
+
+//启用md5
+//#define md5_enabled
+
 //启用串口
 #define com_enabled
 
@@ -260,6 +266,14 @@ uint16_t sys_buffer_stamp = 1;
 #ifdef ini_enabled
   //配置文件
   const char* ini_filename = "/config/config.csv";
+#endif
+
+#ifdef crc_enabled
+  #include <CRC.h>
+#endif
+
+#ifdef md5_enabled
+  #include <bearssl/bearssl.h>
 #endif
 
 //随机数-------------------------------------------------------------------------
