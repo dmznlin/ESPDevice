@@ -276,6 +276,11 @@ uint16_t sys_buffer_stamp = 1;
   #include <bearssl/bearssl.h>
 #endif
 
+//串口通讯-----------------------------------------------------------------------
+#ifdef com_enabled
+  #include <SoftwareSerial.h>
+#endif
+
 //随机数-------------------------------------------------------------------------
 #ifdef random_enabled
   #include <ESP8266TrueRandom.h>
@@ -288,7 +293,6 @@ uint16_t sys_buffer_stamp = 1;
 
   //free head size
   uint32_t size_heap_last = 0;
-  uint32_t size_heap_now = 0;
 
   //刷新频率(秒)
   byte run_status_update = 30;

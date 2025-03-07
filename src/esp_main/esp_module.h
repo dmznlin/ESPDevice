@@ -187,6 +187,78 @@ bool ini_setval(const String& sec, const String& key, const String& val) {
   }
   return false;
 }
+
+/*
+  date: 2025-03-07 09:17:05
+  desc: 载入外部ini配置
+*/
+void ini_load_cfg() {
+  String cfg = ini_getval("system", "dev_name");
+  if (cfg.length() > 0) str2char(cfg, dev_name, false);
+
+  cfg = ini_getval("system", "dev_id");
+  if (cfg.length() > 0) str2char(cfg, dev_id, false);
+
+  cfg = ini_getval("performance", "sys_buffer_max");
+  if (cfg.length() > 0) {
+    long val = cfg.toInt();
+    if (val > 0 && val < UINT8_MAX) sys_buffer_max = val;
+  }
+
+  #ifdef sys_auto_delay
+    cfg = ini_getval("performance", "sys_loop_interval");
+    if (cfg.length() > 0) {
+      long val = cfg.toInt();
+      if (val > 0 && val < UINT8_MAX) sys_loop_interval = val;
+    }
+  #endif
+
+  #ifdef run_status
+    cfg = ini_getval("performance", "run_status_update");
+    if (cfg.length() > 0) {
+      long val = cfg.toInt();
+      if (val > 0 && val < UINT8_MAX) run_status_update = val;
+    }
+  #endif
+}
+#endif
+
+//---------------------
+#ifdef com_enabled
+/*
+  date: 2025-03-06 11:42:05
+  parm: 字符串
+  desc: 返回str对应的config值
+*/
+EspSoftwareSerial::Config str_com_cfg(const char* str) {
+  if (strcmp(str, "5N1") == 0) return SWSERIAL_5N1;
+  if (strcmp(str, "6N1") == 0) return SWSERIAL_6N1;
+  if (strcmp(str, "7N1") == 0) return SWSERIAL_7N1;
+  if (strcmp(str, "8N1") == 0) return SWSERIAL_8N1;
+  if (strcmp(str, "5E1") == 0) return SWSERIAL_5E1;
+  if (strcmp(str, "6E1") == 0) return SWSERIAL_6E1;
+  if (strcmp(str, "7E1") == 0) return SWSERIAL_7E1;
+  if (strcmp(str, "8E1") == 0) return SWSERIAL_8E1;
+  if (strcmp(str, "5O1") == 0) return SWSERIAL_5O1;
+  if (strcmp(str, "6O1") == 0) return SWSERIAL_6O1;
+  if (strcmp(str, "7O1") == 0) return SWSERIAL_7O1;
+  if (strcmp(str, "8O1") == 0) return SWSERIAL_8O1;
+  if (strcmp(str, "5N2") == 0) return SWSERIAL_5N2;
+  if (strcmp(str, "6N2") == 0) return SWSERIAL_6N2;
+  if (strcmp(str, "7N2") == 0) return SWSERIAL_7N2;
+  if (strcmp(str, "8N2") == 0) return SWSERIAL_8N2;
+  if (strcmp(str, "5E2") == 0) return SWSERIAL_5E2;
+  if (strcmp(str, "6E2") == 0) return SWSERIAL_6E2;
+  if (strcmp(str, "7E2") == 0) return SWSERIAL_7E2;
+  if (strcmp(str, "8E2") == 0) return SWSERIAL_8E2;
+  if (strcmp(str, "5O2") == 0) return SWSERIAL_5O2;
+  if (strcmp(str, "6O2") == 0) return SWSERIAL_6O2;
+  if (strcmp(str, "7O2") == 0) return SWSERIAL_7O2;
+  if (strcmp(str, "8O2") == 0) return SWSERIAL_8O2;
+
+  //default
+  return SWSERIAL_8N1;
+}
 #endif
 
 //MQTT---------------------------------------------------------------------------
@@ -506,6 +578,84 @@ bool wifi_config_by_web() {
 #endif
 
 //业务---------------------------------------------------------------------------
+#ifdef run_status
+/*
+  date: 2025-03-07 09:27:20
+  desc: 打印系统运行状态日志
+*/
+void sys_run_status() {
+  if (run_status_update > 0 && GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
+    //update tickcount
+    run_status_lastsend = GetTickCount(false);
+
+    //now free heap
+    uint32_t size_heap_now = ESP.getFreeHeap();
+
+    String info = "\nBufferSize: ";
+    info.concat(sys_buffer_size);
+    info.concat("\nBufferLocked: ");
+    info.concat(sys_buffer_locked);
+    info.concat("\nHeapFree: ");
+    info.concat(size_heap_now);
+    info.concat("\nHeapFreeChange: ");
+    info.concat(int32_t(size_heap_now - size_heap_last));
+    info.concat("\nHeapFragmentation: ");
+    info.concat(ESP.getHeapFragmentation());
+    info.concat("\nMaxFreeBlockSize: ");
+    info.concat(ESP.getMaxFreeBlockSize());
+
+    #ifdef ntp_enabled
+    info.concat("\nTimeNow: ");
+    info.concat(ntp_client.getFormattedTime());
+    #endif
+
+    info.concat("\nCoreVersion: ");
+    info.concat(ESP.getCoreVersion());
+    info.concat("\nSdkVersion: ");
+    info.concat(ESP.getSdkVersion());
+    showlog(info.c_str());
+
+    //last
+    size_heap_last = size_heap_now;
+  }
+}
+#endif
+
+#ifdef run_blinkled
+/*
+  date: 2025-03-07 09:35:10
+  desc: 呼吸灯
+*/
+void sys_blink_led() {
+  uint64_t diff = GetTickcountDiff(led_bright_start);
+  if (diff <= 0 || diff >= led_bright_len) { //亮灯时间结束
+    led_bright_start = 0;
+    return;
+  }
+
+  //本次需达到的亮度表索引: diff/led_bright_len为时间进度
+  byte idx = (diff * led_bright_tableSize / led_bright_len);
+
+  if (idx != led_bright_tableIndex && idx >= 0 && idx < led_bright_tableSize) {
+    if (idx >= led_bright_tableIndex + 3) {
+      //计算与上次的索引差,若较大则补3个delay
+      byte inc_idx = (idx - led_bright_tableIndex) / 3;
+
+      for (; led_bright_tableIndex <= idx; led_bright_tableIndex += inc_idx) {
+        analogWrite(LED_BUILTIN, led_bright_table[led_bright_tableIndex]);
+        delay(1);
+      }
+    }
+    else {
+      analogWrite(LED_BUILTIN, led_bright_table[idx]);
+    }
+
+    //idx已写入
+    led_bright_tableIndex = idx + 1;
+  }
+}
+#endif
+
 /*
   date: 2025-02-22 10:01:10
   desc: 在setup开始时的业务
@@ -513,6 +663,7 @@ bool wifi_config_by_web() {
 bool do_setup_begin() {
   #ifdef run_status
   size_heap_last = ESP.getFreeHeap();
+  run_status_lastsend = GetTickCount(false);
   #endif
 
   #ifdef run_blinkled
@@ -533,35 +684,8 @@ bool do_setup_begin() {
   #endif
 
   #ifdef ini_enabled
-    String cfg = ini_getval("system", "dev_name");
-    if (cfg.length() > 0) str2char(cfg, dev_name, false);
-
-    cfg = ini_getval("system", "dev_id");
-    if (cfg.length() > 0) str2char(cfg, dev_id, false);
-
-    cfg = ini_getval("performance", "sys_buffer_max");
-    if (cfg.length() > 0) {
-      long val = cfg.toInt();
-      if (val > 0 && val < UINT8_MAX) sys_buffer_max = val;
-    }
-
-    #ifdef sys_auto_delay
-      cfg = ini_getval("performance", "sys_loop_interval");
-      if (cfg.length() > 0) {
-        long val = cfg.toInt();
-        if (val > 0 && val < UINT8_MAX) sys_loop_interval = val;
-      }
-    #endif
-
-    #ifdef run_status
-      cfg = ini_getval("performance", "run_status_update");
-      if (cfg.length() > 0) {
-        long val = cfg.toInt();
-        if (val > 0 && val < UINT8_MAX) run_status_update = val;
-      }
-    #endif
+  ini_load_cfg();
   #endif
-
   return true;
 }
 
@@ -634,42 +758,6 @@ bool do_loop_begin() {
   desc: 在loop结束时执行业务
 */
 void do_loop_end() {
-  #ifdef run_status
-  if (run_status_update > 0 && GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
-    //update tickcount
-    run_status_lastsend = GetTickCount(false);
-
-    //now free heap
-    size_heap_now = ESP.getFreeHeap();
-
-    String info = "\nBufferSize: ";
-      info.concat(sys_buffer_size);
-      info.concat("\nBufferLocked: ");
-      info.concat(sys_buffer_locked);
-      info.concat("\nHeapFree: ");
-      info.concat(size_heap_now);
-      info.concat("\nHeapFreeChange: ");
-      info.concat(int32_t(size_heap_now - size_heap_last));
-      info.concat("\nHeapFragmentation: ");
-      info.concat(ESP.getHeapFragmentation());
-      info.concat("\nMaxFreeBlockSize: ");
-      info.concat(ESP.getMaxFreeBlockSize());
-
-      #ifdef ntp_enabled
-      info.concat("\nTimeNow: ");
-      info.concat(ntp_client.getFormattedTime());
-      #endif
-      info.concat("\nCoreVersion: ");
-      info.concat(ESP.getCoreVersion());
-      info.concat("\nSdkVersion: ");
-      info.concat(ESP.getSdkVersion());
-    showlog(info.c_str());
-
-    //last
-    size_heap_last = size_heap_now;
-  }
-  #endif
-
   #ifdef mqtt_enabled
   if (!mqtt_client.connected()) {
     mqtt_conn_broker();
@@ -686,31 +774,11 @@ void do_loop_end() {
   #endif
 
   #ifdef run_blinkled
-  uint64_t diff = GetTickcountDiff(led_bright_start);
-  if (diff <= 0 || diff >= led_bright_len) { //亮灯时间结束
-    led_bright_start = 0;
-    return;
-  }
+  sys_blink_led();
+  #endif
 
-  //本次需达到的亮度表索引: diff/led_bright_len为时间进度
-  byte idx = (diff * led_bright_tableSize / led_bright_len);
-
-  if (idx != led_bright_tableIndex && idx >= 0 && idx < led_bright_tableSize) {
-    if (idx >= led_bright_tableIndex + 3) {
-      //计算与上次的索引差,若较大则补3个delay
-      byte inc_idx = (idx - led_bright_tableIndex) / 3;
-
-      for (; led_bright_tableIndex <= idx; led_bright_tableIndex += inc_idx) {
-        analogWrite(LED_BUILTIN, led_bright_table[led_bright_tableIndex]);
-        delay(1);
-      }
-    } else {
-      analogWrite(LED_BUILTIN, led_bright_table[idx]);
-    }
-
-    //idx已写入
-    led_bright_tableIndex = idx + 1;
-  }
+  #ifdef run_status
+  sys_run_status();
   #endif
 
   #ifdef sys_auto_delay
