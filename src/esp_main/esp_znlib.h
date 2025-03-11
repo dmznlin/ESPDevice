@@ -6,9 +6,10 @@
 #define _esp_funtion__
 #include "esp_define.h"
 
-void showlog(charb* event);
-void showlog(const char* event);
-void showlog(const char* event[], const uint8_t size);
+void showlog(charb* event,bool ln = true);
+void showlog(const char* event, bool ln = true);
+void showlog(const String &event, bool ln = true);
+void showlog(const char* event[], const uint8_t size, bool ln = true);
 
 /*
   date: 2025-02-21 18:32:02
@@ -140,7 +141,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
     } else if (item_first != NULL) { //有可选项
       item = item_first;
       #ifdef debug_enabled
-      Serial.println("sys_buf_lock: re-used,size " + String(sys_buffer_size));
+      showlog("sys_buf_lock: re-used,size " + String(sys_buffer_size));
       #endif
     }
   }
@@ -198,7 +199,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
       }
 
       #ifdef debug_enabled
-      Serial.println("sys_buf_lock: re-malloc " + String(old_len) + "->" + String(len_data));
+      showlog("sys_buf_lock: re-malloc " + String(old_len) + "->" + String(len_data));
       #endif
     }
 
@@ -217,7 +218,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
 
   interrupts(); //unlock
   if (sys_buf_invalid(item)) {
-    Serial.println("sys_buf_lock: failure,size " + String(sys_buffer_size));
+    showlog("sys_buf_lock: failure,size " + String(sys_buffer_size));
   }
   return item;
 }
@@ -320,14 +321,38 @@ charb* sys_buf_status() {
 // showlog-----------------------------------------------------------------------
 /*
   date: 2025-02-12 15:43:20
-  parm: 日志
+  parm: 日志;自动换行
   desc: 向控制台和mqtt发送日志
 */
-void showlog(charb* event) {
+void showlog(charb* event, bool ln) {
   if (sys_buf_valid(event)) {
-    Serial.println(event->data);
+    #ifdef com_swap_pin
+    if (ln) {
+      if (sys_run_step == step_run_setup) {//setup,日志由Serial输出
+        Serial.println(event->data);
+      } else {
+        #ifdef com_print_log
+        Serial1.println(event->data);
+        #endif
+      }
+    } else {
+      if (sys_run_step == step_run_setup) {//setup,日志由Serial输出
+        Serial.print(event->data);
+      } else {
+        #ifdef com_print_log
+        Serial1.print(event->data);
+        #endif
+      }
+    }
+    #else
+    if (ln) {
+      Serial.println(event->data);
+    } else {
+      Serial.print(event->data);
+    }
+    #endif
 
-   #ifdef mqtt_showlog
+    #ifdef mqtt_showlog
     if (mqtt_do_send != NULL) {
       mqtt_do_send(event->data, false);
     }
@@ -340,9 +365,20 @@ void showlog(charb* event) {
   parm: 日志
   desc: 向控制台和mqtt发送日志
 */
-void showlog(const char* event) {
+void showlog(const char* event, bool ln) {
   charb* buf = sys_buf_fill(event);
-  showlog(buf);
+  showlog(buf, ln);
+  sys_buf_unlock(buf);
+}
+
+/*
+  date: 2025-03-10 21:09:20
+  parm: 日志
+  desc: 向控制台和mqtt发送日志
+*/
+void showlog(const String &event, bool ln) {
+  charb* buf = sys_buf_fill(event.c_str());
+  showlog(buf, ln);
   sys_buf_unlock(buf);
 }
 
@@ -351,9 +387,9 @@ void showlog(const char* event) {
   parm: 日志数组;数组大小
   desc: 向控制台和mqtt发送日志
 */
-void showlog(const char* event[], const uint8_t size) {
+void showlog(const char* event[], const uint8_t size, bool ln) {
   charb* buf = sys_buf_concat(event, size);
-  showlog(buf);
+  showlog(buf, ln);
   sys_buf_unlock(buf);
 }
 

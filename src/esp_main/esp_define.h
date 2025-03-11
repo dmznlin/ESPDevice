@@ -43,6 +43,10 @@
         showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
       }
     }
+
+  *.当 Serial 作为硬件串口连接设备时,需打开 com_swap_pin,避免日志干扰通讯.
+  *.当 step_run_setup 日志输出 Serial.print,step_run_loop 使用 Serial1.print.
+  *.当 Serial1 用作通讯口时,需禁用 com_print_log 关闭日志.
 ********************************************************************************/
 #ifndef _esp_define__
 #define _esp_define__
@@ -134,6 +138,11 @@ byte sys_buffer_max = 120;
 //当前有效的缓冲标记
 uint16_t sys_buffer_stamp = 1;
 #endif
+
+//当前运行阶段
+const byte step_run_setup = 7;
+const byte step_run_loop = 19;
+byte sys_run_step = step_run_setup;
 
 //WiFi---------------------------------------------------------------------------
 #ifdef wifi_enabled
@@ -278,7 +287,33 @@ uint16_t sys_buffer_stamp = 1;
 
 //串口通讯-----------------------------------------------------------------------
 #ifdef com_enabled
-  #include <SoftwareSerial.h>
+  //使用串口打印日志
+  //#define com_print_log
+
+  //屏蔽Serial上电打印
+  #define com_swap_pin
+  /*
+    1.启动时esp会通过 Serial 打印日志
+    2.若使用 Serial 作为通讯口,日志会影响设备通讯
+    3.稳妥的方法是: 将引脚 swap,1->15(tx->d8),3->13(rx->d7)
+    4.若启用 swap,则日志会自动通过 Serial1 打印
+    5.若 Serial1 用于通讯,则禁用 com_print_log
+  */
+
+  #ifdef com_swap_pin
+    //esp8266的 led 在 UART1 的 tx 的引脚上,呼吸灯会干扰通讯
+    #undef run_blinkled
+  #endif
+
+  //配置文件key
+  #define com_tx "pin_tx"
+  #define com_rx "pin_rx"
+  #define com_config "config"
+  #define com_baud_rate "baud_rate"
+
+  //接收缓冲,一般为协议包的2倍
+  const byte com_recv_buf_size = 30;
+  RingBuf<char, com_recv_buf_size> com_recv_buffer;
 #endif
 
 //随机数-------------------------------------------------------------------------

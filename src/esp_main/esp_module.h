@@ -43,6 +43,44 @@ charb* sys_random_uuid() {
 }
 #endif
 
+//-------------------------------------------------------------------------------
+#ifdef com_enabled
+/*
+  date: 2025-03-09 10:49:05
+  parm: 字符串
+  desc: 返回str对应的硬件串口config值
+*/
+SerialConfig str_com_hard_cfg(const char* str) {
+  if (strcmp(str, "5N1") == 0) return SERIAL_5N1;
+  if (strcmp(str, "6N1") == 0) return SERIAL_6N1;
+  if (strcmp(str, "7N1") == 0) return SERIAL_7N1;
+  if (strcmp(str, "8N1") == 0) return SERIAL_8N1;
+  if (strcmp(str, "5E1") == 0) return SERIAL_5E1;
+  if (strcmp(str, "6E1") == 0) return SERIAL_6E1;
+  if (strcmp(str, "7E1") == 0) return SERIAL_7E1;
+  if (strcmp(str, "8E1") == 0) return SERIAL_8E1;
+  if (strcmp(str, "5O1") == 0) return SERIAL_5O1;
+  if (strcmp(str, "6O1") == 0) return SERIAL_6O1;
+  if (strcmp(str, "7O1") == 0) return SERIAL_7O1;
+  if (strcmp(str, "8O1") == 0) return SERIAL_8O1;
+  if (strcmp(str, "5N2") == 0) return SERIAL_5N2;
+  if (strcmp(str, "6N2") == 0) return SERIAL_6N2;
+  if (strcmp(str, "7N2") == 0) return SERIAL_7N2;
+  if (strcmp(str, "8N2") == 0) return SERIAL_8N2;
+  if (strcmp(str, "5E2") == 0) return SERIAL_5E2;
+  if (strcmp(str, "6E2") == 0) return SERIAL_6E2;
+  if (strcmp(str, "7E2") == 0) return SERIAL_7E2;
+  if (strcmp(str, "8E2") == 0) return SERIAL_8E2;
+  if (strcmp(str, "5O2") == 0) return SERIAL_5O2;
+  if (strcmp(str, "6O2") == 0) return SERIAL_6O2;
+  if (strcmp(str, "7O2") == 0) return SERIAL_7O2;
+  if (strcmp(str, "8O2") == 0) return SERIAL_8O2;
+
+  //default
+  return SERIAL_8N1;
+}
+#endif
+
 //INI----------------------------------------------------------------------------
 #ifdef ini_enabled
 /*
@@ -65,6 +103,10 @@ String ini_getval(const String& sec, const String& key, const String& def = "") 
 
     if (line.startsWith(";") || line.startsWith("[") || line.isEmpty()) { //注释行和空行
       if (line.startsWith("[")) {
+        if (sec_match) { //new section, not found key
+          return result;
+        }
+
         line = line.substring(1, line.indexOf("]"));
         line.trim();
         sec_match = line.equalsIgnoreCase(sec);
@@ -220,44 +262,31 @@ void ini_load_cfg() {
       if (val > 0 && val < UINT8_MAX) run_status_update = val;
     }
   #endif
-}
-#endif
 
-//---------------------
-#ifdef com_enabled
-/*
-  date: 2025-03-06 11:42:05
-  parm: 字符串
-  desc: 返回str对应的config值
-*/
-EspSoftwareSerial::Config str_com_cfg(const char* str) {
-  if (strcmp(str, "5N1") == 0) return SWSERIAL_5N1;
-  if (strcmp(str, "6N1") == 0) return SWSERIAL_6N1;
-  if (strcmp(str, "7N1") == 0) return SWSERIAL_7N1;
-  if (strcmp(str, "8N1") == 0) return SWSERIAL_8N1;
-  if (strcmp(str, "5E1") == 0) return SWSERIAL_5E1;
-  if (strcmp(str, "6E1") == 0) return SWSERIAL_6E1;
-  if (strcmp(str, "7E1") == 0) return SWSERIAL_7E1;
-  if (strcmp(str, "8E1") == 0) return SWSERIAL_8E1;
-  if (strcmp(str, "5O1") == 0) return SWSERIAL_5O1;
-  if (strcmp(str, "6O1") == 0) return SWSERIAL_6O1;
-  if (strcmp(str, "7O1") == 0) return SWSERIAL_7O1;
-  if (strcmp(str, "8O1") == 0) return SWSERIAL_8O1;
-  if (strcmp(str, "5N2") == 0) return SWSERIAL_5N2;
-  if (strcmp(str, "6N2") == 0) return SWSERIAL_6N2;
-  if (strcmp(str, "7N2") == 0) return SWSERIAL_7N2;
-  if (strcmp(str, "8N2") == 0) return SWSERIAL_8N2;
-  if (strcmp(str, "5E2") == 0) return SWSERIAL_5E2;
-  if (strcmp(str, "6E2") == 0) return SWSERIAL_6E2;
-  if (strcmp(str, "7E2") == 0) return SWSERIAL_7E2;
-  if (strcmp(str, "8E2") == 0) return SWSERIAL_8E2;
-  if (strcmp(str, "5O2") == 0) return SWSERIAL_5O2;
-  if (strcmp(str, "6O2") == 0) return SWSERIAL_6O2;
-  if (strcmp(str, "7O2") == 0) return SWSERIAL_7O2;
-  if (strcmp(str, "8O2") == 0) return SWSERIAL_8O2;
+  #ifdef com_enabled
+    cfg = ini_getval("com_0", com_baud_rate);//UART0
+    if (cfg.length() > 0) {
+      uint32_t bd = cfg.toInt();
+      cfg = ini_getval("com_0", com_config); //数据奇偶校验
+      showlog("ini_load_cfg: hard_serial_0," + String(bd) + "|" + cfg);
 
-  //default
-  return SWSERIAL_8N1;
+      Serial.flush(); //no need call end()
+      //start serial0
+      Serial.begin(bd, str_com_hard_cfg(cfg.c_str()));
+    }
+
+    cfg = ini_getval("com_1", com_baud_rate); //UART1
+    if (cfg.length() > 0) {
+      uint32_t bd = cfg.toInt();
+      cfg = ini_getval("com_1", com_config); //数据奇偶校验
+      showlog("ini_load_cfg: hard_serial_1," + String(bd) + "|" + cfg);
+
+      //start serial1
+      Serial1.begin(bd, str_com_hard_cfg(cfg.c_str()));
+    } else {
+      Serial1.begin(115200);
+    }
+  #endif
 }
 #endif
 
@@ -268,12 +297,12 @@ EspSoftwareSerial::Config str_com_cfg(const char* str) {
   desc: 连接mqtt服务器并订阅主题
 */
 void mqtt_conn_broker() {
-  Serial.print("MQTT connection...");
+  showlog("MQTT connection...");
   bool is_conn = false;
 
   if (mqtt_server_user != NULL) {
     #ifdef debug_enabled
-    Serial.println("mqtt_conn_broker: " + String(mqtt_client_id) + " - " +
+    showlog("mqtt_conn_broker: " + String(mqtt_client_id) + " - " +
       String(mqtt_server_user) + String(mqtt_server_pwd));
     #endif
 
@@ -287,7 +316,7 @@ void mqtt_conn_broker() {
     #endif
   } else {
     #ifdef debug_enabled
-    Serial.println("mqtt_conn_broker: " + String(mqtt_client_id));
+    showlog("mqtt_conn_broker: " + String(mqtt_client_id));
     #endif
 
     #ifdef mqtt_online
@@ -300,12 +329,8 @@ void mqtt_conn_broker() {
   }
 
   if (!is_conn) {
-    Serial.print("failed, rc=");
-    Serial.print(mqtt_client.state());
-    Serial.println(" try again in 3 seconds");
-
-    // Wait 3 seconds before retrying
-    delay(3000);
+    showlog("failed, rc=" + String(mqtt_client.state()) + " try again in 3 seconds");
+    delay(3000); // Wait 3 seconds before retrying
     return;
   }
 
@@ -318,7 +343,7 @@ void mqtt_conn_broker() {
   #endif
 
   #ifdef debug_enabled
-  Serial.println("mqtt_conn_broker: subscribe " + String(mqtt_topic_cmd) + " " +
+  showlog("mqtt_conn_broker: subscribe " + String(mqtt_topic_cmd) + " " +
     String(mqtt_topic_cmd_qos));
   #endif
   mqtt_client.subscribe(mqtt_topic_cmd, mqtt_topic_cmd_qos);
@@ -342,7 +367,7 @@ void mqtt_send(const char* data, bool retained = false) {
 
   item = sys_buf_lock(data_len + 1);
   if (!sys_buf_valid(item)) {
-    Serial.println("mqtt_send: lock data failed");
+    showlog("mqtt_send: lock data failed");
     return;
   }
 
@@ -375,17 +400,13 @@ bool wifi_config_by_web() {
     //设置为无线终端模式
     WiFi.mode(WIFI_STA);
 
-    if (doInit != NULL) {
-      doInit(NULL);
-    }
-
     //连接wifi
     WiFi.begin(wifi_ssid, wifi_pwd);
-    Serial.println("");
+    showlog("");
     byte i = 0;
 
     while (WiFi.status() != WL_CONNECTED) {
-      Serial.print(".");
+      showlog(".", false);
       delay(500);
       i++;
 
@@ -548,8 +569,7 @@ bool wifi_config_by_web() {
   wifi_isok = WiFi.status() == WL_CONNECTED;
 
   #ifdef wifi_fs_autoconfig
-  Serial.print("\nESP Server On: ");
-  Serial.println(local);
+  showlog("\nESP Server On: " + local.toString());
   #else
   if (!wifi_isok) {
     showlog("WiFi is invalid!");
@@ -702,7 +722,7 @@ void do_setup_end() {
   #ifdef mqtt_enabled
   if (mqtt_server_ip != NULL) {
     #ifdef debug_enabled
-    Serial.println("mqtt_server: " + String(mqtt_server_ip) + ":" +
+    showlog("mqtt_server: " + String(mqtt_server_ip) + ":" +
       String(mqtt_server_port));
     #endif
 
@@ -713,6 +733,15 @@ void do_setup_end() {
   //enable showlog callback
   mqtt_do_send = mqtt_send;
   #endif
+
+  #ifdef com_swap_pin
+  Serial.flush();
+  Serial.swap(); //tx交接给外设
+  while (Serial.read() > 0) {}  //clear rx
+  #endif
+
+  //setup结束,开始loop
+  sys_run_step = step_run_loop;
 }
 
 /*
@@ -748,6 +777,34 @@ bool do_loop_begin() {
   #ifdef ntp_enabled
   //update time
   ntp_client.update();
+  #endif
+
+  #ifdef com_enabled
+  int data_len = Serial.available(); //串口数据集
+  if (data_len > 0) {
+    uint16_t total = 0;
+    //temp receive buffer
+    charb* tmp = sys_buf_lock(com_recv_buf_size, true);
+
+    do {
+      if (data_len > com_recv_buf_size) {
+        data_len = com_recv_buf_size;
+      }
+
+      //接收串口数据
+      data_len = Serial.readBytes(tmp->data, data_len);
+      for (int idx = 0; idx < data_len; idx++) {
+        com_recv_buffer.pushOverwrite(tmp->data[idx]);
+      }
+
+      total += data_len;
+      if (total >= com_recv_buf_size) break; //接收缓冲全部更新
+      data_len = Serial.available();
+    } while (data_len > 0);
+
+    //release buffer
+    sys_buf_unlock(tmp);
+  }
   #endif
 
   return true;
