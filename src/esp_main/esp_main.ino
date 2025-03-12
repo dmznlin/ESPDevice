@@ -73,13 +73,12 @@ void loop() {
   if (!do_loop_begin()) return;
 
   /*在这里开始写你的代码*/
-  charb* ptr = sys_random_uuid();
-  showlog(ptr);
-  sys_buf_unlock(ptr);
+  int y, m, d;
+  decode_now_date(&y, &m, &d);
+  showlog(String(y) + " " + String(m) + " " + String(d));
 
-  ptr = ini_getval("system", "name");
-  showlog(ptr);
-  sys_buf_unlock(ptr);
+  decode_now_time(&y, &m, &d);
+  showlog(String(y) + " " + String(m) + " " + String(d));
 
   /*external loop*/
   do_loop_end();

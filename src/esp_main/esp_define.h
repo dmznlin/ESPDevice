@@ -79,6 +79,8 @@
         com_recv_buffer.clear();
       }
     }
+  *.默认开启 com_recv_overwrite,在接收缓冲区写满后自动覆盖旧数据,这可能会导致丢
+    数据;若关闭 com_recv_overwrite,需手动 clear 或 使用 pop 读数据以释放空间.
 ********************************************************************************/
 #ifndef _esp_define__
 #define _esp_define__
@@ -109,7 +111,7 @@
 //#define md5_enabled
 
 //启用串口
-#define com_enabled
+//#define com_enabled
 
 //启用modbus
 #define modbus_enabled
@@ -342,6 +344,9 @@ byte sys_run_step = step_run_setup;
   #define com_rx "pin_rx"
   #define com_config "config"
   #define com_baud_rate "baud_rate"
+
+  //接收时自动覆盖旧数据
+  #define com_recv_overwrite
 
   //接收缓冲,一般为协议包的2倍
   const byte com_recv_buf_size = 30;

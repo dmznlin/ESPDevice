@@ -79,6 +79,94 @@ SerialConfig str_com_hard_cfg(const char* str) {
   //default
   return SERIAL_8N1;
 }
+
+/*
+  date: 2025-03-12 15:13:05
+  desc: 读取Serial串口中的数据
+*/
+void sys_serial_read() {
+  #ifndef com_recv_overwrite
+  //缓冲已满
+  if (com_recv_buffer.isFull()) return;
+  #endif
+
+  int data_len = Serial.available(); //串口数据集
+  if (data_len > 0) {
+    //temp receive buffer
+    charb* tmp = sys_buf_lock(com_recv_buf_size, true);
+
+    do {
+      if (data_len > com_recv_buf_size) {
+        data_len = com_recv_buf_size;
+      }
+
+      //接收串口数据
+      data_len = Serial.readBytes(tmp->data, data_len);
+      for (int idx = 0; idx < data_len; idx++) {
+        #ifdef com_recv_overwrite
+        com_recv_buffer.pushOverwrite(tmp->data[idx]);
+        #else
+        com_recv_buffer.push(tmp->data[idx]);
+        if (com_recv_buffer.isFull()) break; //写满即停
+        #endif
+      }
+
+      //剩余数据
+      data_len = Serial.available();
+    } while (data_len > 0);
+
+    //release buffer
+    sys_buf_unlock(tmp);
+  }
+}
+#endif
+
+//NTP----------------------------------------------------------------------------
+#ifdef ntp_enabled
+/*
+  date: 2025-03-12 15:15:05
+  parm: 格式化
+  desc: 使用 format 格式化ntp当前时间
+*/
+charb* str_now(const char* format = "%Y-%m-%d %H:%M:%S") {
+  charb* ret = sys_buf_lock(32, true); //19=YYYY-mm-dd HH:MM:SS
+  if (sys_buf_valid(ret)) {
+    time_t et = ntp_client.getEpochTime();
+    struct tm* now = gmtime(&et);
+    strftime(ret->data, 32, format, now);
+  }
+
+  return ret;
+}
+
+void decode_now_date(int* year, int* mon, int* day) {
+  time_t et = ntp_client.getEpochTime();
+  struct tm* now = gmtime(&et);
+  *year = now->tm_year + 1900;
+  *mon = now->tm_mon + 1;
+  *day = now->tm_mday;
+}
+
+void decode_now_time(int* hour, int* min, int* second) {
+  time_t et = ntp_client.getEpochTime();
+  struct tm* now = gmtime(&et);
+  *hour = now->tm_hour;
+  *min = now->tm_min;
+  *second = now->tm_sec;
+}
+
+void decode_now(int* year, int* mon, int* day, int* hour, int* min, int* second) {
+  time_t et = ntp_client.getEpochTime();
+  struct tm* now = gmtime(&et);
+
+  *year = now->tm_year + 1900;
+  *mon = now->tm_mon + 1;
+  *day = now->tm_mday;
+
+  *hour = now->tm_hour;
+  *min = now->tm_min;
+  *second = now->tm_sec;
+}
 #endif
 
 //INI----------------------------------------------------------------------------
@@ -780,31 +868,8 @@ bool do_loop_begin() {
   #endif
 
   #ifdef com_enabled
-  int data_len = Serial.available(); //串口数据集
-  if (data_len > 0) {
-    uint16_t total = 0;
-    //temp receive buffer
-    charb* tmp = sys_buf_lock(com_recv_buf_size, true);
-
-    do {
-      if (data_len > com_recv_buf_size) {
-        data_len = com_recv_buf_size;
-      }
-
-      //接收串口数据
-      data_len = Serial.readBytes(tmp->data, data_len);
-      for (int idx = 0; idx < data_len; idx++) {
-        com_recv_buffer.pushOverwrite(tmp->data[idx]);
-      }
-
-      total += data_len;
-      if (total >= com_recv_buf_size) break; //接收缓冲全部更新
-      data_len = Serial.available();
-    } while (data_len > 0);
-
-    //release buffer
-    sys_buf_unlock(tmp);
-  }
+  //read data
+  sys_serial_read();
   #endif
 
   return true;
