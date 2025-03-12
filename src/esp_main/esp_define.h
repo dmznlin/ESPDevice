@@ -416,11 +416,18 @@ print("};")
 
 //自动降速---------------------------------------------------------------------------
 #ifdef sys_auto_delay
-  //本次loop开始计时
-  uint64_t sys_loop_start = 0;
-
   //单次loop最小耗时(毫秒)
   byte sys_loop_interval = 50;
+#endif
+
+#if defined(sys_auto_delay) || defined(run_blinkled) || defined(run_status)
+  //使用loop计时
+  #define sys_loop_ticktime
+#endif
+
+#ifdef sys_loop_ticktime
+  //本次loop开始计时
+  uint64_t sys_loop_start = 0;
 #endif
 
 #endif

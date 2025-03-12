@@ -694,7 +694,7 @@ bool wifi_config_by_web() {
 void sys_run_status() {
   if (run_status_update > 0 && GetTickcountDiff(run_status_lastsend) >= run_status_update * 1000) {
     //update tickcount
-    run_status_lastsend = GetTickCount(false);
+    run_status_lastsend = sys_loop_start;
 
     //now free heap
     uint32_t size_heap_now = ESP.getFreeHeap();
@@ -837,7 +837,7 @@ void do_setup_end() {
   desc: 在loop开始时执行业务
 */
 bool do_loop_begin() {
-  #ifdef sys_auto_delay
+  #ifdef sys_loop_ticktime
   sys_loop_start = GetTickCount(false);
   #endif
 
@@ -850,7 +850,7 @@ bool do_loop_begin() {
 
   #ifdef run_blinkled
   if (led_bright_start == 0) { //亮灯循环开始
-    led_bright_start = GetTickCount(false);
+    led_bright_start = sys_loop_start;
     analogWrite(LED_BUILTIN, led_bright_table[0]);
   }
   #endif
