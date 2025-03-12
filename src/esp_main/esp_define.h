@@ -47,6 +47,38 @@
   *.当 Serial 作为硬件串口连接设备时,需打开 com_swap_pin,避免日志干扰通讯.
   *.当 step_run_setup 日志输出 Serial.print,step_run_loop 使用 Serial1.print.
   *.当 Serial1 用作通讯口时,需禁用 com_print_log 关闭日志.
+  *.串口数据解析示例:
+    uint8_t size = com_recv_buffer.size();
+    if (size > 0) { //has data
+      int16_t st = -1; //start
+      int16_t ed = -1; //end
+      int16_t idx = size - 1; //last distance
+
+      char dt; //data
+      while (idx >= 0) {
+        //com_recv_buffer.peek(dt, idx);
+        dt = com_recv_buffer[idx];
+        if (dt == 0x03 && ed < 0) ed = idx; //帧尾
+
+        if (dt == 0x02 && ed > 0) { //帧头,需先有帧尾
+          st = idx;
+          break;
+        }
+
+        idx--; //倒序查找最新帧
+      }
+
+      if (st >= 0 && st < ed) {
+        for (idx = st + 1; idx < ed; idx++) { //read start-end
+          //com_recv_buffer.peek(dt, idx);
+          dt = com_recv_buffer[idx];
+          Serial1.print(dt);
+        }
+
+        //clear buffer
+        com_recv_buffer.clear();
+      }
+    }
 ********************************************************************************/
 #ifndef _esp_define__
 #define _esp_define__
@@ -287,9 +319,6 @@ byte sys_run_step = step_run_setup;
 
 //串口通讯-----------------------------------------------------------------------
 #ifdef com_enabled
-  //使用串口打印日志
-  //#define com_print_log
-
   //屏蔽Serial上电打印
   #define com_swap_pin
   /*
@@ -303,6 +332,9 @@ byte sys_run_step = step_run_setup;
   #ifdef com_swap_pin
     //esp8266的 led 在 UART1 的 tx 的引脚上,呼吸灯会干扰通讯
     #undef run_blinkled
+
+    //使用 Serial1 打印日志
+    //#define com_print_log
   #endif
 
   //配置文件key
