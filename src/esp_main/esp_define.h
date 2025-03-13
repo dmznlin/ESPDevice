@@ -96,7 +96,7 @@
 #define wifi_enabled
 
 //启用mqtt
-#define mqtt_enabled
+//#define mqtt_enabled
 
 //启用ntp
 #define ntp_enabled
@@ -114,10 +114,10 @@
 //#define com_enabled
 
 //启用modbus
-#define modbus_enabled
+//#define modbus_enabled
 
 //运行监控
-#define run_status
+//#define run_status
 
 //运行时呼吸灯
 #define run_blinkled
@@ -140,6 +140,9 @@ const char* dev_name = "esp_8266";
 
 //设备标识(MAC)
 const char* dev_id = "000000";
+
+//默认管理密码
+const char* dev_pwd = NULL;
 
 //系统缓冲区: char-in-buffer
 #define charb sys_buffer_item

@@ -329,6 +329,9 @@ void ini_load_cfg() {
   cfg = ini_getval("system", "dev_id");
   if (cfg.length() > 0) str2char(cfg, dev_id, false);
 
+  cfg = ini_getval("system", "dev_pwd");
+  if (cfg.length() > 0) str2char(cfg, dev_pwd, false);
+
   cfg = ini_getval("performance", "sys_buffer_max");
   if (cfg.length() > 0) {
     long val = cfg.toInt();
@@ -466,6 +469,47 @@ void mqtt_send(const char* data, bool retained = false) {
 #endif
 
 //配置WiFi-----------------------------------------------------------------------
+#ifdef wifi_fs_autoconfig
+/*
+  date: 2025-03-13 21:05:20
+  desc: 管理员配置入口
+
+  *.编辑器: /admin?pwd=xxx&do=editor
+  *.格式化: /admin?pwd=xxx&do=format
+*/
+void wifi_fs_server_admin(AsyncWebServerRequest* req) {
+  String val = "";
+  if (req->hasParam("pwd")) val = req->arg("pwd");
+
+  if (!val.equals(dev_pwd)) {
+    req->send(500, "text/plain", "Invalid admin password.");
+    return;
+  }
+
+  if (req->hasParam("do")) {
+    val = req->arg("do");
+    if (val.equals("editor")) { //打开在线编辑器
+      #ifdef ini_enabled
+      ini_setval("system", "dev_enable_editor", "Yes");
+      #else
+      req->send(500, "text/plain", "Ini is disabled.");
+      #endif
+
+      return;
+    }
+
+    if (val.equals("format")) { //格式化文件系统
+      LittleFS.format();
+      ESP.restart();
+      return;
+    }
+  }
+
+  req->send(500, "text/plain", "Invalid admin action.");
+}
+
+#endif
+
 #ifdef wifi_enabled
 /*
   date: 2025-02-12 15:43:20
@@ -644,8 +688,21 @@ bool wifi_config_by_web() {
       wifi_fs_server.addOption(label_ntp_server, str_ntp_server);
     #endif
 
+    #ifdef ini_enabled
+      String cfg = ini_getval("system", "dev_enable_editor");
+      if (cfg.equals("Yes")) { //启用编辑器
+        wifi_fs_server.enableFsCodeEditor();
+      };
+    #endif
+
     if (wifi_on_serverInit != NULL) {
       wifi_on_serverInit(step_init_setoption);
+    }
+
+    //管理入口
+    wifi_fs_server.on("/admin", HTTP_GET, wifi_fs_server_admin);
+    if (dev_pwd != NULL) {
+      wifi_fs_server.setAuthentication("admin", dev_pwd);
     }
 
     //启动服务
