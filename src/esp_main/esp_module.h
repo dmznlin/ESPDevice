@@ -476,6 +476,7 @@ void mqtt_send(const char* data, bool retained = false) {
 
   *.编辑器: /admin?pwd=xxx&do=editor
   *.格式化: /admin?pwd=xxx&do=format
+  *.WiFi:   /admin?pwd=xxx&do=wifi
 */
 void wifi_fs_server_admin(AsyncWebServerRequest* req) {
   String val = "";
@@ -501,6 +502,25 @@ void wifi_fs_server_admin(AsyncWebServerRequest* req) {
     if (val.equals("format")) { //格式化文件系统
       LittleFS.format();
       ESP.restart();
+      return;
+    }
+
+    if (val.equals("wifi")) { //重置 station 模式下的WiFi参数
+      WiFiMode_t wm = WiFi.getMode();
+      if (wm == WIFI_STA || wm == WIFI_AP_STA) {
+        wifi_isok = false;
+        delay(100);
+
+        WiFi.persistent(true);
+        WiFi.disconnect(true);
+        WiFi.persistent(false);
+
+        //restart
+        ESP.restart();
+      } else {
+        req->send(500, "text/plain", "WiFi not on WIFI_STA modal.");
+      }
+
       return;
     }
   }
@@ -668,6 +688,13 @@ bool wifi_config_by_web() {
       wifi_on_serverInit(step_init_getoption);
     }
 
+    #ifdef ini_enabled
+      String url = ini_getval("system", "dev_captive_url");
+      if (url.length() > 0) { //认证主页
+        wifi_fs_server.setCaptiveUrl(url);
+      };
+    #endif
+
     //连接WiFi
     IPAddress local = wifi_fs_server.startWiFi(10000, dev_name, "");
 
@@ -695,14 +722,14 @@ bool wifi_config_by_web() {
       };
     #endif
 
-    if (wifi_on_serverInit != NULL) {
-      wifi_on_serverInit(step_init_setoption);
-    }
-
     //管理入口
     wifi_fs_server.on("/admin", HTTP_GET, wifi_fs_server_admin);
     if (dev_pwd != NULL) {
       wifi_fs_server.setAuthentication("admin", dev_pwd);
+    }
+
+    if (wifi_on_serverInit != NULL) {
+      wifi_on_serverInit(step_init_setoption);
     }
 
     //启动服务
