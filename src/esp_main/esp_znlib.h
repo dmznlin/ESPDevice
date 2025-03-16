@@ -547,5 +547,4 @@ charb* str_crc32(const char* data) {
 }
 #endif
 
-
 #endif

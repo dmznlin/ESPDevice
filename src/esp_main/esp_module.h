@@ -492,6 +492,7 @@ void wifi_fs_server_admin(AsyncWebServerRequest* req) {
     if (val.equals("editor")) { //打开在线编辑器
       #ifdef ini_enabled
       ini_setval("system", "dev_enable_editor", "Yes");
+      ESP.restart();
       #else
       req->send(500, "text/plain", "Ini is disabled.");
       #endif
