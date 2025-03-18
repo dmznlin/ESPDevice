@@ -844,9 +844,35 @@ void sys_run_status() {
 #endif
 
 #ifdef run_blinkled
+#ifdef sys_esp32
+/*
+  date: 2025-03-18 16:08:10
+  desc: esp32呼吸灯
+*/
+void sys_blink_led() {
+  uint32_t color;
+  byte wp = 255 - led_color_current & 255; //wheel pos
+
+  if (wp < 85) {
+    color = led_strip.Color(255 - wp * 3, 0, wp * 3);
+  } else if(wp < 170) {
+    wp -= 85;
+    color = led_strip.Color(0, wp * 3, 255 - wp * 3);
+  } else {
+    wp -= 170;
+    color = led_strip.Color(wp * 3, 255 - wp * 3, 0);
+  }
+
+  led_strip.setPixelColor(0, color);
+  led_strip.show();
+  led_color_current++;
+}
+#endif
+
+#ifdef sys_esp8266
 /*
   date: 2025-03-07 09:35:10
-  desc: 呼吸灯
+  desc: esp8266呼吸灯
 */
 void sys_blink_led() {
   uint64_t diff = GetTickcountDiff(led_bright_start);
@@ -877,6 +903,7 @@ void sys_blink_led() {
   }
 }
 #endif
+#endif
 
 /*
   date: 2025-02-22 10:01:10
@@ -889,9 +916,17 @@ bool do_setup_begin() {
   #endif
 
   #ifdef run_blinkled
-  pinMode(LED_BUILTIN, OUTPUT);
-  analogWriteFreq(500);   // 设置PWM频率为500Hz
-  analogWriteRange(1023); // 10位分辨率(0-1023)
+    #ifdef sys_esp32
+    led_strip.begin();
+    led_strip.setBrightness(50);
+    led_strip.show(); // Initialize all pixels to 'off'
+    #endif
+
+    #ifdef sys_esp8266
+    pinMode(LED_BUILTIN, OUTPUT);
+    analogWriteFreq(500);   // 设置PWM频率为500Hz
+    analogWriteRange(1023); // 10位分辨率(0-1023)
+    #endif
   #endif
 
   #ifdef lfs_enabled
@@ -962,7 +997,7 @@ bool do_loop_begin() {
   }
   #endif
 
-  #ifdef run_blinkled
+  #if defined(run_blinkled) && defined(sys_esp8266)
   if (led_bright_start == 0) { //亮灯循环开始
     led_bright_start = sys_loop_start;
     analogWrite(LED_BUILTIN, led_bright_table[0]);

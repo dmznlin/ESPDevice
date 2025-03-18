@@ -1,26 +1,74 @@
-#include <Adafruit_NeoPixel.h>
-#include <Arduino.h>
+/********************************************************************************
+  作者: dmzn@163.com 2025-02-12
+  描述: 适用于esp8266/esp32的基础框架
+********************************************************************************/
+#include "esp_define.h"
+#include "esp_module.h"
+#include "esp_znlib.h"
 
-#define LED_PIN 8 // 板载RGB灯珠的引脚，根据实际使用的开发板型号而定
-#define LED_COUNT 1 // LED灯条的灯珠数量（板载的是一颗）
+/*
+  date: 2025-02-17 11:00:12
+  parm: 初始化阶段
+  desc: 提供用户配置wifi的入口
+*/
+void do_wifi_onInit(byte step) {
+#ifdef wifi_fs_autoconfig
+  if (step == step_init_setoption) {
+    wifi_fs_server.enableFsCodeEditor();
+  }
+#endif
+}
 
-Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+#ifdef mqtt_enabled
+/*
+  date: 2025-02-17 11:07:30
+  parm: 主题;内容;内容长度
+  desc: 接收并处理mqtt数据
+*/
+void do_mqtt_onData(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+#endif
 
+//主程序-------------------------------------------------------------------------
 void setup() {
-  strip.begin();
-  strip.setBrightness(50); // 设置亮度（0-255范围）
+  /* Initialize serial and wait for port to open: */
+  Serial.begin(115200);
+
+  /* This delay gives the chance to wait for a Serial Monitor without blocking if none is found */
+  delay(1500);
+
+  /*external setup*/
+  if (!do_setup_begin()) return;
+
+#ifdef wifi_enabled
+  /*use web server to config wifi*/
+  wifi_on_serverInit = do_wifi_onInit;
+#endif
+
+#ifdef mqtt_enabled
+  /*parse mqtt data*/
+  mqtt_on_data = do_mqtt_onData;
+#endif
+
+  /*在这里开始写你的代码*/
+
+  /*external setup*/
+  do_setup_end();
 }
 
 void loop() {
-  strip.setPixelColor(0, strip.Color(255, 0, 0)); // 设置灯珠为红色 (R, G, B)
-  strip.show(); // 显示颜色
-  delay(1000); // 延迟1秒
+  /*external loop*/
+  if (!do_loop_begin()) return;
 
-  strip.setPixelColor(0, strip.Color(0, 255, 0)); // 设置灯珠为绿色 (R, G, B)
-  strip.show(); // 显示颜色
-  delay(1000); // 延迟1秒
+  /*在这里开始写你的代码*/
 
-  strip.setPixelColor(0, strip.Color(0, 0, 255)); // 设置灯珠为蓝色 (R, G, B)
-  strip.show(); // 显示颜色
-  delay(1000); // 延迟1秒
+  /*external loop*/
+  do_loop_end();
 }

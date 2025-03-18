@@ -139,8 +139,7 @@
 #ifdef sys_esp32 //not support
   #undef md5_enabled
   #undef random_enabled
-  #undef run_blinkled
-  //#undef run_status
+  #undef com_enabled
   #undef buf_auto_unlock
 #endif
 
@@ -395,14 +394,25 @@ byte sys_run_step = step_run_setup;
 
 //呼吸灯-------------------------------------------------------------------------
 #ifdef run_blinkled
+  #ifdef sys_esp32
+  #include <Adafruit_NeoPixel.h>
+
+  //当前颜色索引
+  uint8_t led_color_current = 0;
+
+  //esp32-c3 mini使用1颗三色LED,在gpio8引脚
+  Adafruit_NeoPixel led_strip = Adafruit_NeoPixel(1, 8);
+  #endif
+
+  #ifdef sys_esp8266
   //亮灯开始计时
   uint64_t led_bright_start = 0;
 
-  //查表数组当前索引
-  byte led_bright_tableIndex = 0;
-
   //亮灯时长(毫秒)
   const uint16_t led_bright_len = 1200;
+
+  //查表数组当前索引
+  byte led_bright_tableIndex = 0;
 
   //查表数组大小，影响平滑度
   const byte led_bright_tableSize = 100;
@@ -416,6 +426,7 @@ byte sys_run_step = step_run_setup;
     223, 220, 220, 220, 223, 227, 232, 239, 248, 258, 269, 282, 296, 312, 328, 346,
     365, 385, 406, 428, 450, 473, 497, 521, 546, 571, 596
   };
+  #endif
 
   /* 呼吸表算法:
 import math
