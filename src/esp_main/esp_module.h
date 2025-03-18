@@ -529,6 +529,18 @@ void wifi_fs_server_admin(AsyncWebServerRequest* req) {
   req->send(500, "text/plain", "Invalid admin action.");
 }
 
+#ifdef ESP32
+/*
+  date: 2025-03-18 11:11:20
+  desc: 获取文件系统信息
+*/
+void wifi_fs_server_getFS(fsInfo_t* fsInfo) {
+  fsInfo->fsName = "LittleFS";
+  fsInfo->totalBytes = LittleFS.totalBytes();
+  fsInfo->usedBytes = LittleFS.usedBytes();
+}
+#endif
+
 #endif
 
 #ifdef wifi_enabled
@@ -723,6 +735,10 @@ bool wifi_config_by_web() {
       };
     #endif
 
+    #ifdef sys_esp32
+      wifi_fs_server.setFsInfoCallback(wifi_fs_server_getFS);
+    #endif
+
     //管理入口
     wifi_fs_server.on("/admin", HTTP_GET, wifi_fs_server_admin);
     if (dev_pwd != NULL) {
@@ -792,18 +808,31 @@ void sys_run_status() {
     info.concat(size_heap_now);
     info.concat("\nHeapFreeChange: ");
     info.concat(int32_t(size_heap_now - size_heap_last));
+
+    #ifdef sys_esp8266
     info.concat("\nHeapFragmentation: ");
     info.concat(ESP.getHeapFragmentation());
     info.concat("\nMaxFreeBlockSize: ");
     info.concat(ESP.getMaxFreeBlockSize());
+    #endif
 
     #ifdef ntp_enabled
     info.concat("\nTimeNow: ");
     info.concat(ntp_client.getFormattedTime());
     #endif
 
+    #ifdef sys_esp8266
     info.concat("\nCoreVersion: ");
     info.concat(ESP.getCoreVersion());
+    #endif
+
+    #ifdef sys_esp32
+    info.concat("\nChipModel: ");
+    info.concat(ESP.getChipModel());
+    info.concat("\nCpuFreqMHz: ");
+    info.concat(ESP.getCpuFreqMHz());
+    #endif
+
     info.concat("\nSdkVersion: ");
     info.concat(ESP.getSdkVersion());
     showlog(info.c_str());

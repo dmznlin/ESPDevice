@@ -208,11 +208,11 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
       if (auto_unlock) { //自动释放标记
         item->stamp = sys_buffer_stamp;
       }
+      #endif
 
       item->used = true; //锁定
       item->data_type = data_type;
       sys_buffer_locked++;
-      #endif
     }
   }
 

@@ -85,6 +85,14 @@
 #ifndef _esp_define__
 #define _esp_define__
 
+#ifdef ESP32
+  #define sys_esp32
+#endif
+
+#ifdef  ESP8266
+  #define sys_esp8266
+#endif
+
 //功能开关-----------------------------------------------------------------------
 //调试模式
 #define debug_enabled
@@ -96,7 +104,7 @@
 #define wifi_enabled
 
 //启用mqtt
-//#define mqtt_enabled
+#define mqtt_enabled
 
 //启用ntp
 #define ntp_enabled
@@ -105,10 +113,10 @@
 #define ini_enabled
 
 //启用crc
-//#define crc_enabled
+#define crc_enabled
 
 //启用md5
-//#define md5_enabled
+#define md5_enabled
 
 //启用串口
 //#define com_enabled
@@ -117,7 +125,7 @@
 //#define modbus_enabled
 
 //运行监控
-//#define run_status
+#define run_status
 
 //运行时呼吸灯
 #define run_blinkled
@@ -127,6 +135,14 @@
 
 //启用自动降速
 #define sys_auto_delay
+
+#ifdef sys_esp32 //not support
+  #undef md5_enabled
+  #undef random_enabled
+  #undef run_blinkled
+  //#undef run_status
+  #undef buf_auto_unlock
+#endif
 
 //global-------------------------------------------------------------------------
 //分隔符
@@ -184,7 +200,11 @@ byte sys_run_step = step_run_setup;
 //WiFi---------------------------------------------------------------------------
 #ifdef wifi_enabled
   //base
-  #include <ESP8266WiFi.h>
+  #ifdef sys_esp32
+    #include <WiFi.h>
+  #else
+    #include <ESP8266WiFi.h>
+  #endif
 
   //自动配置WiFi和文件系统
   //库: AsyncFsWebServer
