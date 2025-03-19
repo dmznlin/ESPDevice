@@ -12,11 +12,11 @@
   desc: 提供用户配置wifi的入口
 */
 void do_wifi_onInit(byte step) {
-#ifdef wifi_fs_autoconfig
-  if (step == step_init_setoption) {
-    wifi_fs_server.enableFsCodeEditor();
-  }
-#endif
+  #ifdef wifi_fs_autoconfig
+    if (step == step_init_setoption) {
+      //do something
+    }
+  #endif
 }
 
 #ifdef mqtt_enabled
@@ -47,15 +47,15 @@ void setup() {
   /*external setup*/
   if (!do_setup_begin()) return;
 
-#ifdef wifi_enabled
-  /*use web server to config wifi*/
-  wifi_on_serverInit = do_wifi_onInit;
-#endif
+  #ifdef wifi_enabled
+    /*use web server to config wifi*/
+    wifi_on_serverInit = do_wifi_onInit;
+  #endif
 
-#ifdef mqtt_enabled
-  /*parse mqtt data*/
-  mqtt_on_data = do_mqtt_onData;
-#endif
+  #ifdef mqtt_enabled
+    /*parse mqtt data*/
+    mqtt_on_data = do_mqtt_onData;
+  #endif
 
   /*在这里开始写你的代码*/
 
@@ -66,6 +66,7 @@ void setup() {
 void loop() {
   /*external loop*/
   if (!do_loop_begin()) return;
+  //do_loop_begin();
 
   /*在这里开始写你的代码*/
 

@@ -143,6 +143,20 @@
   #undef buf_auto_unlock
 #endif
 
+//编译正式版本
+#define sys_release
+#ifdef sys_release
+  #undef debug_enabled
+  #undef random_enabled
+  #undef md5_enabled
+  #undef mqtt_enabled
+  #undef ntp_enabled
+  #undef crc_enabled
+  #undef md5_enabled
+  #undef com_enabled
+  #undef run_status
+#endif
+
 //global-------------------------------------------------------------------------
 //分隔符
 const char* split_tag = ";";
