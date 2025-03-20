@@ -137,8 +137,6 @@
 #define sys_auto_delay
 
 #ifdef sys_esp32 //not support
-  #undef md5_enabled
-  #undef random_enabled
   #undef com_enabled
   #undef buf_auto_unlock
 #endif
@@ -163,6 +161,9 @@ const char* split_tag = ";";
 
 //空字符串
 const char* str_null = "null";
+
+//hex char
+const char str_hex[] = "0123456789abcdef";
 
 //设备名称
 const char* dev_name = "esp_8266";
@@ -352,7 +353,13 @@ byte sys_run_step = step_run_setup;
 #endif
 
 #ifdef md5_enabled
-  #include <bearssl/bearssl.h>
+  #ifdef sys_esp32
+    #include "mbedtls/md5.h"
+  #endif
+
+  #ifdef sys_esp8266
+    #include <bearssl/bearssl.h>
+  #endif
 #endif
 
 //串口通讯-----------------------------------------------------------------------
@@ -391,7 +398,13 @@ byte sys_run_step = step_run_setup;
 
 //随机数-------------------------------------------------------------------------
 #ifdef random_enabled
-  #include <ESP8266TrueRandom.h>
+  #ifdef sys_esp32
+
+  #endif
+
+  #ifdef sys_esp8266
+    #include <ESP8266TrueRandom.h>
+  #endif
 #endif
 
 //运行监控-----------------------------------------------------------------------

@@ -9,6 +9,62 @@
 
 //随机数-------------------------------------------------------------------------
 #ifdef random_enabled
+#ifdef sys_esp32
+/*
+  date: 2025-03-20 16:04:05
+  parm: 最大;最小
+  desc: 生成随机数
+*/
+uint32_t sys_random(uint32_t big = 0, uint32_t small = 0) {
+  if (big < 1) {
+    return esp_random();
+  }
+
+  if (big == small) {
+    return big;
+  }
+
+  if (big < small) {
+    std::swap(big, small);
+  }
+
+  uint32_t val = esp_random() % (big - small);
+  if (val % 3 == 0 || val % 7 == 0) { //允许随机数达到最大值
+    val++;
+  }
+
+  return small + val;
+}
+
+/*
+  date: 2025-03-20 16:21:05
+  desc: 生成随机的UUID
+*/
+charb* sys_random_uuid() {
+  charb* ret = sys_buf_lock(36 + 1, true); //16*2 + 4分隔符
+  if (sys_buf_invalid(ret)) {
+    return NULL;
+  }
+
+  uint8_t rnd,val;
+  uint8_t cur = 0;
+
+  for (uint8_t idx = 0; idx < 16; idx++) {
+    if (idx == 4 || idx == 6 || idx == 8 || idx == 10) {
+      ret->data[cur++] = '-';
+    }
+
+    rnd = sys_random(0xFF);
+    ret->data[cur++] = str_hex[rnd >> 4];
+    ret->data[cur++] = str_hex[rnd & 0x0f];
+  }
+
+  ret->data[cur] = '\0';
+  return ret;
+}
+#endif
+
+#ifdef sys_esp8266
 /*
   date: 2025-02-25 16:14:05
   parm: 最大;最小
@@ -41,6 +97,7 @@ charb* sys_random_uuid() {
   }
   return ret;
 }
+#endif
 #endif
 
 //-------------------------------------------------------------------------------

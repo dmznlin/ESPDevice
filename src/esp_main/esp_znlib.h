@@ -443,8 +443,85 @@ void str2char(const String& str, const char*& dest, bool check = true) {
   }
 }
 
+//字节---------------------------------------------------------------------------
+/*
+  date: 2025-03-20 10:07:10
+  parm: 数据;ASCII形式
+  desc: 展开aByte的8个位
+*/
+charb* byte2bits(byte aByte,bool use_asc = false) {
+  charb* ret = sys_buf_lock(8 + 1, true);
+  if (sys_buf_valid(ret)) {
+    for (int8_t idx = 7; idx >= 0; idx--) {
+      if (use_asc) {
+        ret->data[7 - idx] = ((aByte >> idx) & 1) + 0x30;
+      } else {
+        ret->data[7 - idx] = (aByte >> idx) & 1;
+      }
+    }
+
+    ret->data[8] = '\0';
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-03-20 11:19:10
+  parm: 位数组;ASCII形式
+  desc: 合并bits为一个字节
+*/
+byte bits2byte(const char* bits, bool use_asc = false) {
+  byte ret = 0;
+  for (int8_t idx = 7; idx >= 0; idx--) {
+    if (use_asc) {
+      ret |= ((bits[7 - idx] - 0x30) << idx);
+    } else {
+      ret |= (bits[7 - idx] << idx);
+    }
+  }
+
+  return ret;
+}
+
 //编码&加密----------------------------------------------------------------------
 #ifdef md5_enabled
+#ifdef sys_esp32
+/*
+  date: 2025-03-19 23:54:10
+  parm: 数据
+  desc: 计算data的md5值
+*/
+charb* str_md5(const char* data) {
+  if (data == NULL) return NULL;
+  size_t len = strlen(data);
+  if (len < 1) return NULL;
+
+  const byte md5_SIZE = 16;
+  uint8_t md5Bytes[md5_SIZE];
+  mbedtls_md5_context md5Context;
+
+  mbedtls_md5_init(&md5Context);
+  mbedtls_md5_starts_ret(&md5Context);
+  mbedtls_md5_update_ret(&md5Context, (const unsigned char*)data, len);
+  mbedtls_md5_finish_ret(&md5Context, md5Bytes);
+
+  charb* ret = sys_buf_lock(md5_SIZE * 2 + 1, true);
+  if (sys_buf_invalid(ret)) return NULL;
+  byte cur = 0;
+
+  for (int i = 0; i < md5_SIZE; i++) {
+    byte b = md5Bytes[i];
+    ret->data[cur++] = str_hex[b >> 4]; //高4位
+    ret->data[cur++] = str_hex[b & 0x0F]; //低4位
+  }
+
+  ret->data[cur] = '\0';
+  return ret;
+}
+#endif
+
+#ifdef sys_esp8266
 /*
   date: 2025-03-05 09:04:10
   parm: 数据
@@ -469,21 +546,16 @@ charb* str_md5(const char* data) {
   if (sys_buf_invalid(ret)) return NULL;
   byte cur = 0;
 
-  //hex char
-  const char hex[] = "0123456789abcdef";
-
   for (int i = 0; i < br_md5_SIZE; i++) {
     byte b = md5Bytes[i];
-    byte high = (b >> 4);
-    byte low = (b & 0xF);
-
-    ret->data[cur++] = hex[b >> 4]; //高4位
-    ret->data[cur++] = hex[b & 0x0F]; //低4位
+    ret->data[cur++] = str_hex[b >> 4]; //高4位
+    ret->data[cur++] = str_hex[b & 0x0F]; //低4位
   }
 
   ret->data[cur] = '\0';
   return ret;
 }
+#endif
 #endif
 
 #ifdef crc_enabled
