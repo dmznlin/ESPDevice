@@ -967,6 +967,10 @@ void sys_blink_led() {
   desc: 在setup开始时的业务
 */
 bool do_setup_begin() {
+  #ifdef sys_esp32
+  sys_sync_lock = xSemaphoreCreateMutex();
+  #endif
+
   #ifdef run_status
   size_heap_last = ESP.getFreeHeap();
   run_status_lastsend = GetTickCount(false);

@@ -38,6 +38,27 @@ uint64_t GetTickcountDiff(uint64_t from, bool precise = false) {
   return now + (UINT64_MAX) - from;
 }
 
+//Desc: 同步锁定
+bool sys_sync_enter() {
+  #ifdef ESP32
+  if (sys_sync_lock == NULL) {
+    Serial.println("sys_sync_enter: sync mutex invalid.");
+    return false;
+  }
+
+  return xSemaphoreTake(sys_sync_lock, (TickType_t)10) == pdTRUE;
+  #else
+  return true;
+  #endif
+}
+
+//Desc: 释放同步锁
+void sys_sync_leave() {
+  #ifdef ESP32
+  if (sys_sync_lock != NULL) xSemaphoreGive(sys_sync_lock);
+  #endif
+}
+
 // 缓冲区---------------------------------------------------------------------------
 /*
   date: 2025-02-24 21:21:02
@@ -98,7 +119,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
   charb* item_first = NULL; //首个可用项
   charb* item_last = NULL; //链表结束项
 
-  noInterrupts();
+  if (!sys_sync_enter()) return NULL;
   //sync-lock
 
   charb* tmp = sys_data_buffer;
@@ -216,7 +237,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
     }
   }
 
-  interrupts(); //unlock
+  sys_sync_leave(); //unlock
   if (sys_buf_invalid(item)) {
     showlog("sys_buf_lock: failure,size " + String(sys_buffer_size));
   }
@@ -230,7 +251,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
 */
 void sys_buf_unlock(charb* item, bool reset_type = false) {
   if (item != NULL) {
-    noInterrupts();//sync-lock
+    sys_sync_enter();//sync-lock
     item->used = false;
     if (reset_type) item->data_type = 0;
     sys_buffer_locked--;
@@ -238,7 +259,7 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
     #ifdef buf_auto_unlock
     item->stamp = 0;
     #endif
-    interrupts(); //unlock
+    sys_sync_leave(); //unlock
   }
 }
 

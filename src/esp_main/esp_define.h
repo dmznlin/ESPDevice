@@ -119,7 +119,7 @@
 #define md5_enabled
 
 //启用串口
-//#define com_enabled
+#define com_enabled
 
 //启用modbus
 //#define modbus_enabled
@@ -210,6 +210,11 @@ uint16_t sys_buffer_stamp = 1;
 const byte step_run_setup = 7;
 const byte step_run_loop = 19;
 byte sys_run_step = step_run_setup;
+
+#ifdef sys_esp32
+  //全局互斥信号量
+  SemaphoreHandle_t sys_sync_lock = NULL;
+#endif
 
 //WiFi---------------------------------------------------------------------------
 #ifdef wifi_enabled
