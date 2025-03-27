@@ -523,9 +523,9 @@ charb* str_md5(const char* data) {
   mbedtls_md5_context md5Context;
 
   mbedtls_md5_init(&md5Context);
-  mbedtls_md5_starts_ret(&md5Context);
-  mbedtls_md5_update_ret(&md5Context, (const unsigned char*)data, len);
-  mbedtls_md5_finish_ret(&md5Context, md5Bytes);
+  mbedtls_md5_starts(&md5Context);
+  mbedtls_md5_update(&md5Context, (const unsigned char*)data, len);
+  mbedtls_md5_finish(&md5Context, md5Bytes);
 
   charb* ret = sys_buf_lock(md5_SIZE * 2 + 1, true);
   if (sys_buf_invalid(ret)) return NULL;
