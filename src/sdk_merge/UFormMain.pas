@@ -175,11 +175,11 @@ begin
 
     for i := 0 to nLineB.Count - 1 do
     begin
-      if nKey = ParseVal(nLineB[nIdx]) then
+      if nKey = ParseVal(nLineB[i]) then
       begin
         if CheckVal then
         begin
-          nStr := ParseVal(nLineB[nIdx], False);
+          nStr := ParseVal(nLineB[i], False);
           if nVal <> nStr then
             FListDiff.Add(nLineA[nIdx] + ' //' + nStr);
           //xxxxx
