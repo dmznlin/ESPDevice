@@ -3,11 +3,11 @@ unit UFormMain;
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, cxGraphics, cxControls, cxLookAndFeels,
-  cxLookAndFeelPainters, cxGeometry, dxFramedControl, cxSplitter, uSynEdit,
-  uSynMemo, dxPanel, Vcl.ComCtrls, Vcl.ToolWin, Vcl.Menus, Vcl.StdCtrls,
-  cxButtons, cxContainer, cxEdit, cxProgressBar;
+  Winapi.Windows, Winapi.Messages, System.SysUtils, cxGraphics, cxControls,
+  Vcl.Forms, cxLookAndFeels, cxLookAndFeelPainters, cxGeometry, dxFramedControl,
+  Vcl.Menus, cxContainer, cxEdit, Vcl.StdCtrls, cxRadioGroup, cxProgressBar,
+  cxButtons, cxSplitter, uSynEdit, uSynMemo, System.Classes, Vcl.Controls,
+  dxPanel;
 
 type
   TfFormMain = class(TForm)
@@ -20,6 +20,8 @@ type
     dxPanel2: TdxPanel;
     BtnMerge: TcxButton;
     Bar1: TcxProgressBar;
+    RadioAB: TcxRadioButton;
+    RadioKV: TcxRadioButton;
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure FormResize(Sender: TObject);
@@ -133,6 +135,20 @@ end;
 function ParseVal(const nVal: string; Key: Boolean = True): string;inline;
 var nIdx: Integer;
 begin
+  if fFormMain.RadioKV.Checked then //使用key=value格式
+  begin
+    nIdx := Pos('=', nVal);
+    if nIdx > 1 then
+    begin
+      if Key then
+           Result := Trim(Copy(nVal, 1, nIdx - 1))
+      else Result := Trim(Copy(nVal, nIdx + 1, MaxInt));
+
+    end else Result := '';
+
+    Exit;
+  end;
+
   nIdx := Pos(cPrefix, LowerCase(nVal));
   if nIdx < 1 then
   begin

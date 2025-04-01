@@ -2,8 +2,8 @@ object fFormMain: TfFormMain
   Left = 0
   Top = 0
   Caption = 'SDK-Merger'
-  ClientHeight = 549
-  ClientWidth = 820
+  ClientHeight = 606
+  ClientWidth = 813
   Color = clBtnFace
   Font.Charset = GB2312_CHARSET
   Font.Color = clWindowText
@@ -19,14 +19,14 @@ object fFormMain: TfFormMain
   object PanelTop: TdxPanel
     Left = 0
     Top = 0
-    Width = 820
+    Width = 813
     Height = 337
     Align = alTop
     TabOrder = 0
     object MemoSrc2: TUSynMemo
       Left = 409
       Top = 0
-      Width = 409
+      Width = 402
       Height = 304
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
@@ -81,11 +81,14 @@ object fFormMain: TfFormMain
     object dxPanel2: TdxPanel
       Left = 0
       Top = 304
-      Width = 818
+      Width = 811
       Height = 31
       Align = alBottom
       Frame.Visible = False
       TabOrder = 3
+      DesignSize = (
+        811
+        31)
       object BtnMerge: TcxButton
         Left = 371
         Top = 3
@@ -96,18 +99,37 @@ object fFormMain: TfFormMain
         OnClick = BtnMergeClick
       end
       object Bar1: TcxProgressBar
-        Left = 5
+        Left = 603
         Top = 6
+        Anchors = [akTop, akRight]
         TabOrder = 1
         Visible = False
         Width = 200
+      end
+      object RadioAB: TcxRadioButton
+        Left = 5
+        Top = 7
+        Caption = '#define key value'
+        Checked = True
+        TabOrder = 2
+        TabStop = True
+        AutoSize = True
+        Transparent = True
+      end
+      object RadioKV: TcxRadioButton
+        Left = 132
+        Top = 7
+        Caption = 'key = value'
+        TabOrder = 3
+        AutoSize = True
+        Transparent = True
       end
     end
   end
   object cxSplitter2: TcxSplitter
     Left = 0
     Top = 337
-    Width = 820
+    Width = 813
     Height = 8
     HotZoneClassName = 'TcxXPTaskBarStyle'
     AlignSplitter = salTop
@@ -115,8 +137,8 @@ object fFormMain: TfFormMain
   object MemoDest: TUSynMemo
     Left = 0
     Top = 345
-    Width = 820
-    Height = 204
+    Width = 813
+    Height = 261
     Align = alClient
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
