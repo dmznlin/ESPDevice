@@ -103,6 +103,9 @@
 //启用WiFi
 #define wifi_enabled
 
+//启用wifi-mesh
+#define mesh_enabled
+
 //启用mqtt
 #define mqtt_enabled
 
@@ -249,6 +252,13 @@ byte sys_run_step = step_run_setup;
   cb_wifi_serverInit wifi_on_serverInit = NULL;
 #endif
 
+#if defined(wifi_enabled) && defined(mesh_enabled)
+  #ifndef wifi_fs_autoconfig
+    //wifi和mesh同时开启时,需要AsyncFsWebServer对象配合
+    #define wifi_fs_autoconfig
+  #endif
+#endif
+
 #if defined(wifi_fs_autoconfig) || defined(ini_enabled)
   #include <LittleFS.h>
   #define lfs_enabled
@@ -277,6 +287,19 @@ byte sys_run_step = step_run_setup;
   //wifi param
   const char* wifi_ssid = "ssid";
   const char* wifi_pwd = "pwd";
+#endif
+
+//MESH---------------------------------------------------------------------------
+#ifdef mesh_enabled
+  #include <painlessMesh.h>
+
+  //mesh对象
+  painlessMesh mesh;
+  //任务调度器
+  Scheduler task_scheduler;
+
+  //服务端口
+  const uint16_t mesh_port = 5555;
 #endif
 
 //MQTT---------------------------------------------------------------------------

@@ -606,13 +606,6 @@ void wifi_fs_server_getFS(fsInfo_t* fsInfo) {
   desc: 提供用户配置wifi的入口
 */
 bool wifi_config_by_web() {
-  if (strcmp(dev_id, "000000") == 0) { //build id
-    String id = WiFi.macAddress();
-    id.replace(":", "");
-    id.toLowerCase();
-    str2char(id, dev_id, false);
-  }
-
   if (wifi_on_serverInit != NULL) {
     wifi_on_serverInit(step_init_begin);
   }
@@ -765,8 +758,13 @@ bool wifi_config_by_web() {
       };
     #endif
 
+    #ifdef mesh_enabled
+    wifi_fs_server.startCaptivePortal(NULL, NULL, NULL);
+    IPAddress local = WiFi.softAPIP();
+    #else
     //连接WiFi
     IPAddress local = wifi_fs_server.startWiFi(10000, dev_name, "");
+    #endif
 
     //禁用 Modem-sleep 模式
     //WiFi.setSleep(WIFI_PS_NONE);
@@ -840,6 +838,38 @@ bool wifi_config_by_web() {
   }
 
   return wifi_isok;
+}
+#endif
+
+//配置mesh-----------------------------------------------------------------------
+#ifdef mesh_enabled
+void do_mesh_receive(uint32_t from, String& msg) {
+  showlog(msg);
+}
+
+void do_mesh_newConn(uint32_t nodeId) {
+}
+
+void do_mesh_connChanged() {}
+
+void do_mesh_timeAdjust(int32_t offset) {}
+
+void do_mesh_delayReceive(uint32_t from, int32_t delay) {}
+
+void wifi_mesh_init() {
+  #ifdef debug_enabled
+    mesh.setDebugMsgTypes(ERROR | MESH_STATUS | CONNECTION | SYNC |
+      COMMUNICATION | GENERAL | MSG_TYPES | REMOTE); // all types on
+  #else
+    mesh.setDebugMsgTypes(ERROR | STARTUP);
+  #endif
+
+  mesh.init(dev_name, "", &task_scheduler, mesh_port);
+  mesh.onReceive(&do_mesh_receive);
+  mesh.onNewConnection(&do_mesh_newConn);
+  mesh.onChangedConnections(&do_mesh_connChanged);
+  mesh.onNodeTimeAdjusted(&do_mesh_timeAdjust);
+  mesh.onNodeDelayReceived(&do_mesh_delayReceive);
 }
 #endif
 
@@ -1004,6 +1034,19 @@ bool do_setup_begin() {
   #ifdef ini_enabled
   ini_load_cfg();
   #endif
+
+  #ifdef wifi_enabled
+  if (strcmp(dev_id, "000000") == 0) { //build id
+    String id = WiFi.macAddress();
+    id.replace(":", "");
+    id.toLowerCase();
+    str2char(id, dev_id, false);
+  }
+  #endif
+
+  #ifdef mesh_enabled
+  wifi_mesh_init();
+  #endif
   return true;
 }
 
@@ -1063,6 +1106,10 @@ bool do_loop_begin() {
     led_bright_start = sys_loop_start;
     analogWrite(LED_BUILTIN, led_bright_table[0]);
   }
+  #endif
+
+  #ifdef mesh_enabled
+  mesh.update();
   #endif
 
   #ifdef wifi_fs_autoconfig
