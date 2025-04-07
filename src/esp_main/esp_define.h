@@ -125,7 +125,7 @@
 #define com_enabled
 
 //启用modbus
-//#define modbus_enabled
+#define modbus_enabled
 
 //运行监控
 #define run_status
@@ -145,18 +145,7 @@
 #endif
 
 //编译正式版本
-#define sys_release
-#ifdef sys_release
-  #undef debug_enabled
-  #undef random_enabled
-  #undef md5_enabled
-  #undef mqtt_enabled
-  #undef ntp_enabled
-  #undef crc_enabled
-  #undef md5_enabled
-  #undef com_enabled
-  #undef run_status
-#endif
+#include "sys_define.h"
 
 //global-------------------------------------------------------------------------
 //分隔符
@@ -275,6 +264,8 @@ byte sys_run_step = step_run_setup;
 
   //server for wifi config
   AsyncFsWebServer wifi_fs_server(80, LittleFS, dev_name);
+  //callback on init websocket
+  AwsEventHandler wifi_on_websocket = nullptr;
 #endif
 
 #ifdef wifi_autoconfig
@@ -300,6 +291,13 @@ byte sys_run_step = step_run_setup;
 
   //服务端口
   const uint16_t mesh_port = 5555;
+
+  //回调事件
+  painlessmesh::receivedCallback_t mesh_on_receive = nullptr;
+  painlessmesh::newConnectionCallback_t mesh_on_newConn = nullptr;
+  painlessmesh::changedConnectionsCallback_t mesh_on_connChanged = nullptr;
+  painlessmesh::nodeTimeAdjustedCallback_t mesh_on_timeAdjust = nullptr;
+  painlessmesh::nodeDelayCallback_t mesh_on_delayReceive = nullptr;
 #endif
 
 //MQTT---------------------------------------------------------------------------

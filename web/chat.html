@@ -31,22 +31,22 @@
         background-color: rgba(1, 139, 141, 0.7);
       }
 
-      textarea {
-        width: calc(100vw - 165px);
+      #editContent {
+        width: calc(100vw - 170px);
         height: 27px;
         border: 1px solid #7192c7;
         border-radius: 5px;
-        font-size: 16px;
-        margin-top: 9px;
+        font-size: 18px;
+        margin-top: 5px;
+        padding-left: 5px;
       }
 
-      input[type="submit"] {
+      #send {
         width: 68px;
         height: 27px;
         right: 8px;
         position: absolute;
-
-        margin-top: 10px;
+        margin-top: 6px;
         border: 1px solid #7192c7;
       }
 
@@ -88,8 +88,8 @@
       <div class="toolbar" id="toolbar">
         <div class="toggle-indicator" onclick="toggleToolbar()">☞</div>
         <div class="toolbar-content">
-          <textarea id="editContent" maxlength="100"></textarea>
-          <input type="submit" value="发送" id="send" />
+          <input type="text" id="editContent" maxlength="100" />
+          <input type="submit" id="send" value="发送" />
         </div>
       </div>
       <div>
@@ -138,13 +138,14 @@
       let time = new Date(),
         user = flag + time.getHours() + time.getMinutes() + time.getSeconds(),
         ws = "",
+        peer = "",
         cont = document.getElementById("content"),
         txar = document.getElementById("editContent"),
         send = document.getElementById("send"),
         audio = document.getElementById("msg_snd");
 
       showMsg(
-        "系统：欢迎光临！<br>言语有礼，交流有心；<br>发言友善，沟通文明。",
+        "系统：欢迎光临！<br>言语有礼，交流有心；<br>发言友善，沟通文明。<br><br><font color='yellow'>/help</font> 查看聊天命令",
         false,
       );
 
@@ -156,7 +157,7 @@
           ws.onopen = function () {
             let sendObj = {
               type: "chat",
-              data: user + "进入聊天室",
+              data: user + ": 进入聊天室",
             };
 
             ws.send(JSON.stringify(sendObj));
@@ -165,7 +166,14 @@
           ws.onmessage = function (evt) {
             if (evt.data) {
               let msg = JSON.parse(evt.data);
-              showMsg(msg.data, msg.data.indexOf(user) !== -1);
+              if (msg.data.indexOf(user + ":") === 0) {
+                showMsg(msg.data, true);
+              } else {
+                // user ex: &#x1F349;1234:
+                if (peer === "" || msg.data.indexOf(";" + peer + ":") > 0) {
+                  showMsg(msg.data, false);
+                }
+              }
             }
           };
 
@@ -188,12 +196,38 @@
           return false;
         }
 
+        if (txar.value.toLowerCase().indexOf("/help") === 0) {
+          showMsg(
+            "/nick name: 修改昵称<br>/pull name: 小窗私聊<br>/go: 离开私聊,回到大厅",
+            true,
+          );
+          return false;
+        }
+
+        if (txar.value.toLowerCase().indexOf("/nick ") === 0) {
+          user = flag + txar.value.substring(txar.value.indexOf(" ")).trim();
+          showMsg("新昵称: " + user, true);
+          return false;
+        }
+
+        if (txar.value.toLowerCase().indexOf("/pull ") === 0) {
+          peer = txar.value.substring(txar.value.indexOf(" ")).trim();
+          showMsg("私聊: " + peer, true);
+          return false;
+        }
+
+        if (txar.value.toLowerCase().indexOf("/go") === 0) {
+          peer = "";
+          showMsg("已退出私聊", true);
+          return false;
+        }
+
         let sendObj = {
           type: "chat",
           data: user + ": " + txar.value,
         };
 
-        showMsg(txar.value, true);
+        //showMsg(JSON.stringify(sendObj), true);
         ws.send(JSON.stringify(sendObj));
         txar.value = "";
       };
@@ -206,6 +240,7 @@
       };
 
       function showMsg(msg, isMe) {
+        txar.value = ""; //clear first
         let span = document.createElement("span"),
           li = document.createElement("li");
 

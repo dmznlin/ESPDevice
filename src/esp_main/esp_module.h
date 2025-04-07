@@ -534,6 +534,7 @@ void mqtt_send(const char* data, bool retained = false) {
   *.编辑器: /admin?pwd=xxx&do=editor
   *.格式化: /admin?pwd=xxx&do=format
   *.WiFi:   /admin?pwd=xxx&do=wifi
+  *.MESH:   /admin?pwd=xxx&do=mesh
 */
 void wifi_fs_server_admin(AsyncWebServerRequest* req) {
   String val = "";
@@ -581,6 +582,13 @@ void wifi_fs_server_admin(AsyncWebServerRequest* req) {
 
       return;
     }
+
+    #ifdef mesh_enabled
+    if (val.equals("mesh")) { //获取mesh结构
+      req->send(200, "application/json", mesh.subConnectionJson(true));
+      return;
+    }
+    #endif
   }
 
   req->send(500, "text/plain", "Invalid admin action.");
@@ -805,7 +813,7 @@ bool wifi_config_by_web() {
     }
 
     //启动服务
-    wifi_fs_server.init();
+    wifi_fs_server.init(wifi_on_websocket);
   #endif
 
   //结果---------------------------------------------------
@@ -838,38 +846,6 @@ bool wifi_config_by_web() {
   }
 
   return wifi_isok;
-}
-#endif
-
-//配置mesh-----------------------------------------------------------------------
-#ifdef mesh_enabled
-void do_mesh_receive(uint32_t from, String& msg) {
-  showlog(msg);
-}
-
-void do_mesh_newConn(uint32_t nodeId) {
-}
-
-void do_mesh_connChanged() {}
-
-void do_mesh_timeAdjust(int32_t offset) {}
-
-void do_mesh_delayReceive(uint32_t from, int32_t delay) {}
-
-void wifi_mesh_init() {
-  #ifdef debug_enabled
-    mesh.setDebugMsgTypes(ERROR | MESH_STATUS | CONNECTION | SYNC |
-      COMMUNICATION | GENERAL | MSG_TYPES | REMOTE); // all types on
-  #else
-    mesh.setDebugMsgTypes(ERROR | STARTUP);
-  #endif
-
-  mesh.init(dev_name, "", &task_scheduler, mesh_port);
-  mesh.onReceive(&do_mesh_receive);
-  mesh.onNewConnection(&do_mesh_newConn);
-  mesh.onChangedConnections(&do_mesh_connChanged);
-  mesh.onNodeTimeAdjusted(&do_mesh_timeAdjust);
-  mesh.onNodeDelayReceived(&do_mesh_delayReceive);
 }
 #endif
 
@@ -1045,8 +1021,17 @@ bool do_setup_begin() {
   #endif
 
   #ifdef mesh_enabled
-  wifi_mesh_init();
+    #ifdef debug_enabled
+    mesh.setDebugMsgTypes(ERROR | MESH_STATUS | CONNECTION | SYNC |
+        COMMUNICATION | GENERAL | MSG_TYPES | REMOTE); // all types on
+    #else
+    mesh.setDebugMsgTypes(ERROR | STARTUP);
+    #endif
+
+    //mesh初始化
+    mesh.init(dev_name, "", &task_scheduler, mesh_port);
   #endif
+
   return true;
 }
 
@@ -1055,6 +1040,14 @@ bool do_setup_begin() {
   desc: 在setup结束时的业务
 */
 void do_setup_end() {
+  #ifdef mesh_enabled
+  mesh.onReceive(mesh_on_receive);
+  mesh.onNewConnection(mesh_on_newConn);
+  mesh.onChangedConnections(mesh_on_connChanged);
+  mesh.onNodeTimeAdjusted(mesh_on_timeAdjust);
+  mesh.onNodeDelayReceived(mesh_on_delayReceive);
+  #endif
+
   #ifdef wifi_enabled
   //connect wifi
   if (!wifi_config_by_web()) return;
