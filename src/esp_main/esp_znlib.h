@@ -464,6 +464,198 @@ void str2char(const String& str, const char*& dest, bool check = true) {
   }
 }
 
+/*
+  date: 2025-04-09 11:00:10
+  parm: 数据;左标识;右标识
+  desc: 获取data中,left - right 中间的数据
+*/
+charb* str_tagsub(const char* data, const char left, const char right) {
+  char* start = strchr(data, left);
+  if (start == NULL) return NULL;  // 左标记未找到
+  start++;  // 移动到左标记的下一个位置
+
+  char* end = strchr(start, right);
+  if (end == NULL) return NULL;  // 右标记未找到
+
+  size_t len = end - start;
+  charb* ret = sys_buf_lock(len + 1, true);
+  if (sys_buf_valid(ret)) {
+    strncpy(ret->data, start, len);
+    ret->data[len] = '\0';
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-04-09 11:06:10
+  parm: 数据;键名
+  desc: 从data中获取key的值
+
+  备注: json要求层级为1,值为字符串或数字,不支持复杂结构.
+  {
+    "key_str": "a",
+    "key_int": 1
+  }
+*/
+charb* json_get(const char* data, const char* key) {
+  if (data == NULL || key == NULL) {
+    return NULL;
+  }
+
+  charb* ret = NULL;
+  const char* ptr;
+  uint8_t len = strlen(key);
+
+  // Define flags
+  const char* start = NULL;
+  const char* end = NULL;
+
+  while (*data != '\0') {
+    // Find the key
+    ptr = strstr(data, "\"");
+    if (ptr == NULL) break; // Invalid format
+    start = ptr + 1;
+
+    ptr = strstr(start, "\"");
+    if (ptr == NULL) break; // Invalid format
+    end = ptr;
+
+    if ((end - start) == len && strncmp(key, start, len) == 0) {
+      // Key matches, find the value
+      ptr = strstr(end, ":");
+      if (ptr == NULL) break; // Invalid format
+
+      start = ptr + 1;
+      while (*start == ' ' || *start == '\"') start++; // Skip spaces and quotes
+
+      end = start;
+      while (*end != '\0' && *end != ',' && *end != '}' && *end != '\"') end++;
+
+      size_t value_len = end - start;
+      ret = sys_buf_lock(value_len + 1, true);
+      if (sys_buf_valid(ret)) {
+        strncpy(ret->data, start, value_len);
+        ret->data[value_len] = '\0';
+      }
+      return ret;
+    }
+
+    // Move to the next key-value pair
+    data = strstr(end, ",");
+    if (data == NULL) break;
+    data++;
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-04-09 14:06:10
+  parm: 数据;键名;值
+  desc: 设置data中key的值
+
+  备注:
+  *.json要求层级为1,值为字符串或数字,不支持复杂结构.
+  {
+    "key_str": "a",
+    "key_int": 1
+  }
+*/
+charb* json_set(const char* data, const char* key, const char* val) {
+  if (data == NULL || key == NULL) {
+    return NULL;
+  }
+
+  charb* ret = NULL;
+  const char* ptr;
+  uint8_t len = strlen(key);
+
+  // Define flags
+  const char* ptr_data = data;
+  const char* start = NULL;
+  const char* end = NULL;
+
+  while (*data != '\0') {
+    // Find the key
+    ptr = strstr(data, "\"");
+    if (ptr == NULL) break; // Invalid format
+    start = ptr + 1;
+
+    ptr = strstr(start, "\"");
+    if (ptr == NULL) break; // Invalid format
+    end = ptr;
+
+    if ((end - start) == len && strncmp(key, start, len) == 0) {
+      // Key matches, find the value
+      ptr = strstr(end, ":");
+      if (ptr == NULL) break; // Invalid format
+
+      start = ptr + 1;
+      while (*start == ' ' || *start == '\"') start++; // Skip spaces and quotes
+
+      end = start;
+      while (*end != '\0' && *end != ',' && *end != '}' && *end != '\"') end++;
+
+      //new len: 原总长 - 原值长 + 新值长
+      size_t all_len = strlen(ptr_data) - (end - start) + strlen(val);
+      ret = sys_buf_lock(all_len + 1, true);
+
+      if (sys_buf_valid(ret)) {
+        strncpy(ret->data, ptr_data, start - ptr_data); //before value
+        strncpy(ret->data + (start - ptr_data), val, strlen(val)); //value
+        strncpy(ret->data + (start - ptr_data) + strlen(val), end, strlen(end)); //after value
+        ret->data[all_len] = '\0'; //end
+      }
+      return ret;
+    }
+
+    // Move to the next key-value pair
+    data = strstr(end, ",");
+    if (data == NULL) break;
+    data++;
+  }
+
+  // If the key was not found, create a new key-value pair
+  end = strstr(ptr_data, "}");
+  if (end == NULL) return NULL; // Invalid format
+
+  //新增7: ,"": "" | 不包括右大括号
+  size_t new_len = strlen(ptr_data) + strlen(key) + strlen(val) + 7;
+  ret = sys_buf_lock(new_len + 1, true);
+  if (sys_buf_valid(ret)) {
+    strncpy(ret->data, ptr_data, end - ptr_data); //before end
+    snprintf(ret->data + (end - ptr_data),
+      strlen(key) + strlen(val) + 8 + 1, ",\"%s\": \"%s\"}", key, val); //k-v
+    ret->data[new_len] = '\0'; //end
+    return ret;
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-04-09 14:28:10
+  parm: 数据;键值对;数组大小
+  desc: 使用kv批量设置data的值
+*/
+charb* json_multiset(const char* data, sys_data_kv vals[], uint8_t size) {
+  charb* ret = NULL;
+  charb* ptr;
+  for (uint8_t idx = 0; idx < size; idx++) {
+    if (sys_buf_invalid(ret)) {
+      ptr = json_set(data, vals[idx].key, vals[idx].value);
+      if (sys_buf_valid(ptr)) ret = ptr;
+    } else {
+      ptr = json_set(ret->data, vals[idx].key, vals[idx].value);
+      if (sys_buf_valid(ptr)) {
+        sys_buf_unlock(ret);
+        ret = ptr;
+      }
+    }
+  }
+  return ret;
+}
 //字节---------------------------------------------------------------------------
 /*
   date: 2025-03-20 10:07:10

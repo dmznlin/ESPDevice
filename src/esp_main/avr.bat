@@ -1,0 +1,1 @@
+"D:\Program Files\Arduino\hardware\tools\avr\bin\avr-size.exe" -A "C:\Users\Administrator\AppData\Local\Temp\arduino_build_494867\esp_main.ino.elf"

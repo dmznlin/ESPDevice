@@ -9,6 +9,9 @@ dev_id=
 ;管理密码
 dev_pwd=
 
+;mesh节点名
+mesh_name=
+
 ;启用在线编辑(Yes)
 dev_enable_editor=Yes
 

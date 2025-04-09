@@ -389,6 +389,9 @@ void ini_load_cfg() {
   cfg = ini_getval("system", "dev_pwd");
   if (cfg.length() > 0) str2char(cfg, dev_pwd, false);
 
+  cfg = ini_getval("system", "mesh_name");
+  if (cfg.length() > 0) str2char(cfg, mesh_name, false);
+
   cfg = ini_getval("performance", "sys_buffer_max");
   if (cfg.length() > 0) {
     long val = cfg.toInt();
@@ -1030,6 +1033,16 @@ bool do_setup_begin() {
 
     //mesh初始化
     mesh.init(dev_name, "", &task_scheduler, mesh_port);
+
+    if (mesh_name == NULL) {
+      String str_dev = dev_name;
+      int idx = str_dev.indexOf(":");
+      if (idx > 1) {
+        str_dev = str_dev.substring(idx + 1);
+        //mesh name
+        str2char(str_dev, mesh_name, false);
+      }
+    }
   #endif
 
   return true;
@@ -1041,11 +1054,11 @@ bool do_setup_begin() {
 */
 void do_setup_end() {
   #ifdef mesh_enabled
-  mesh.onReceive(mesh_on_receive);
-  mesh.onNewConnection(mesh_on_newConn);
-  mesh.onChangedConnections(mesh_on_connChanged);
-  mesh.onNodeTimeAdjusted(mesh_on_timeAdjust);
-  mesh.onNodeDelayReceived(mesh_on_delayReceive);
+  if (mesh_on_receive != nullptr)  mesh.onReceive(mesh_on_receive);
+  if (mesh_on_newConn != nullptr) mesh.onNewConnection(mesh_on_newConn);
+  if (mesh_on_connChanged != nullptr) mesh.onChangedConnections(mesh_on_connChanged);
+  if (mesh_on_timeAdjust != nullptr) mesh.onNodeTimeAdjusted(mesh_on_timeAdjust);
+  if (mesh_on_delayReceive != nullptr) mesh.onNodeDelayReceived(mesh_on_delayReceive);
   #endif
 
   #ifdef wifi_enabled

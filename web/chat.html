@@ -80,6 +80,14 @@
       .toolbar-content button:hover {
         background-color: #45a049;
       }
+
+      .from {
+        font-size: 13px;
+        background: linear-gradient(to right, white, yellow);
+        -webkit-background-clip: text;
+        color: transparent;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+      }
     </style>
   </head>
   <body style="margin: 0px 5px 85px 5px">
@@ -138,7 +146,9 @@
       let time = new Date(),
         user = flag + time.getHours() + time.getMinutes() + time.getSeconds(),
         ws = "",
-        peer = "",
+        peer = "", //私聊id
+        sound = true, //消息提示声音
+        broadcat = true, //接收广播消息
         cont = document.getElementById("content"),
         txar = document.getElementById("editContent"),
         send = document.getElementById("send"),
@@ -166,6 +176,11 @@
           ws.onmessage = function (evt) {
             if (evt.data) {
               let msg = JSON.parse(evt.data);
+              if (!broadcat && msg.data.indexOf("class='from'")) {
+                //不接收广播消息
+                return fale;
+              }
+
               if (msg.data.indexOf(user + ":") === 0) {
                 showMsg(msg.data, true);
               } else {
@@ -178,8 +193,7 @@
           };
 
           ws.onclose = function () {
-            // 关闭 websocket
-            console.log("连接已关闭...");
+            showMsg("已退出聊天室!", false);
           };
         } else {
           alert("您的浏览器不支持 WebSocket!");
@@ -198,27 +212,57 @@
 
         if (txar.value.toLowerCase().indexOf("/help") === 0) {
           showMsg(
-            "/nick name: 修改昵称<br>/pull name: 小窗私聊<br>/go: 离开私聊,回到大厅",
+            "①/nick name: 修改昵称<br> \
+                 ②/pull name: 小窗私聊<br> \
+                 ③/go: 离开私聊回到大厅<br> \
+                 ④/ding: 打开或关闭提示音<br> \
+                 ⑤/quiet: 接收或拒接广播消息",
             true,
           );
+          txar.value = "";
           return false;
         }
 
         if (txar.value.toLowerCase().indexOf("/nick ") === 0) {
           user = flag + txar.value.substring(txar.value.indexOf(" ")).trim();
           showMsg("新昵称: " + user, true);
+          txar.value = "";
           return false;
         }
 
         if (txar.value.toLowerCase().indexOf("/pull ") === 0) {
           peer = txar.value.substring(txar.value.indexOf(" ")).trim();
           showMsg("私聊: " + peer, true);
+          txar.value = "";
           return false;
         }
 
         if (txar.value.toLowerCase().indexOf("/go") === 0) {
           peer = "";
           showMsg("已退出私聊", true);
+          txar.value = "";
+          return false;
+        }
+
+        if (txar.value.toLowerCase().indexOf("/ding") === 0) {
+          sound = !sound;
+          if (sound) {
+            showMsg("消息提示音已打开", true);
+          } else {
+            showMsg("消息提示音已关闭", true);
+          }
+          txar.value = "";
+          return false;
+        }
+
+        if (txar.value.toLowerCase().indexOf("/quiet") === 0) {
+          broadcat = !broadcat;
+          if (broadcat) {
+            showMsg("广播已打开,接收来自其它节点的消息.", true);
+          } else {
+            showMsg("广播已关闭,只接收本节点的消息.", true);
+          }
+          txar.value = "";
           return false;
         }
 
@@ -240,7 +284,6 @@
       };
 
       function showMsg(msg, isMe) {
-        txar.value = ""; //clear first
         let span = document.createElement("span"),
           li = document.createElement("li");
 
@@ -259,7 +302,7 @@
           behavior: "smooth", // 平滑滚动（可选）
         });
 
-        if (!isMe && audio !== null && audio.paused) {
+        if (sound && !isMe && audio !== null && audio.paused) {
           audio.play();
         }
       }

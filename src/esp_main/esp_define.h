@@ -208,6 +208,12 @@ byte sys_run_step = step_run_setup;
   SemaphoreHandle_t sys_sync_lock = NULL;
 #endif
 
+//系统数据结构: key-value
+struct sys_data_kv {
+  const char* key;
+  const char* value;
+};
+
 //WiFi---------------------------------------------------------------------------
 #ifdef wifi_enabled
   //base
@@ -281,6 +287,11 @@ byte sys_run_step = step_run_setup;
 #endif
 
 //MESH---------------------------------------------------------------------------
+#if defined(mesh_enabled) || defined(mqtt_enabled)
+  //环形缓冲(FIFO)
+  #include <RingBuf.h>
+#endif
+
 #ifdef mesh_enabled
   #include <painlessMesh.h>
 
@@ -289,8 +300,15 @@ byte sys_run_step = step_run_setup;
   //任务调度器
   Scheduler task_scheduler;
 
+  //mesh名称(dev_name去掉mesh前缀)
+  const char* mesh_name = NULL;
+
   //服务端口
   const uint16_t mesh_port = 5555;
+
+  //发送缓冲
+  const byte mesh_data_buffer_size = 20;
+  RingBuf<charb*, mesh_data_buffer_size> mesh_send_buffer;
 
   //回调事件
   painlessmesh::receivedCallback_t mesh_on_receive = nullptr;
@@ -308,7 +326,6 @@ byte sys_run_step = step_run_setup;
 
 #ifdef mqtt_enabled
   #include <PubSubClient.h>
-  #include <RingBuf.h>
 
   //向mqtt打印日志
   #define mqtt_showlog
