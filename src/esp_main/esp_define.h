@@ -18,7 +18,7 @@
   *.启用ntp_enabled时,需wifi_fs_autoconfig提供文件系统存取ntp参数.
   *.ntp_server: ntp=x.x.x.x;zone=8;update=30 按需填写
 
-  *.数据缓冲区: sys_buf_lock 与 sys_buf_unlock 需成对出现.
+  *.数据缓冲区: sys_buf_lock 与 sys_buf_unlock 需成对使用.
   *.所有 charb(char_in_buffer) 使用完毕后需要调用 sys_buf_unlock 释放.如:
     charb* ptr = sys_uuid();
     if (sys_buf_valid(ptr)) {
@@ -27,11 +27,6 @@
     sys_buf_unlock(ptr);
   *.根据需要调整 sys_buffer_max,避免缓冲不够 或 内存爆满.
 
-  *.缓冲区自动释放原理:
-    1.开始 loop,设置 sys_buffer_stamp 为不等于 0 的数
-    2.该 loop 内调用 sys_buf_lock 的数据都带有与 sys_buffer_stamp 相同标记
-    3.新 loop 开始, sys_buffer_stamp++, 缓冲区内带有上一 loop 的数据都会自动释放
-  *.依据原理: 只建议在局部变量使用自动释放,且只适用于基于 loop 的单任务模式.
   *.缓冲区支持带类型的指针,如:
     charb* ptr = sys_buf_lock(10, true, 1); //type=1
     if (sys_buf_valid(ptr)) {
@@ -43,10 +38,14 @@
         showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
       }
     }
+
   *.缓冲区超时检查:
     1.调用 sys_buf_lock 时 auto_unlock = true,会自动设置超时标记.
     2.超过 sys_buffer_timeout 会自动解除锁定.
-  *.依据原理: 只建议在局部变量中使用,作为极端情况的补救措施.
+  *.相关函数: sys_buf_timeout_lock, sys_buf_timeout_unlock需成对使用.
+  *.使用原则:
+    1.同函数调用 sys_buf_lock;
+    2.跨函数调用 sys_buf_timeout_lock,避免申请和释放不及时导致的访问异常;
 
   *.当 Serial 作为硬件串口连接设备时,需打开 com_swap_pin,避免日志干扰通讯.
   *.当 step_run_setup 日志输出 Serial.print,step_run_loop 使用 Serial1.print.
@@ -137,9 +136,6 @@
 //运行时呼吸灯
 #define run_blinkled
 
-//启用缓冲自动释放
-#define buf_auto_unlock
-
 //启用缓冲区超时检查
 #define buf_timeout_check
 
@@ -148,7 +144,6 @@
 
 #ifdef sys_esp32 //not support
   #undef com_enabled
-  #undef buf_auto_unlock
 #endif
 
 //编译正式版本
@@ -184,10 +179,6 @@ struct sys_buffer_item {
   bool val_bool;  //bool
   bool used;      //是否使用
 
-  #ifdef buf_auto_unlock
-  uint16_t stamp; //释放标记
-  #endif
-
   #ifdef buf_timeout_check
   uint32_t time;  //超时计时
   #endif
@@ -204,14 +195,16 @@ byte sys_buffer_locked = 0;
 //全局缓冲区item个数上限
 byte sys_buffer_max = 120;
 
-#ifdef buf_auto_unlock
-//当前有效的缓冲标记
-uint16_t sys_buffer_stamp = 1;
-#endif
-
 #ifdef buf_timeout_check
-//缓冲区item最长锁定时间
-uint32_t sys_buffer_timeout = 1000 * 60; //60s
+  //缓冲区item最长锁定时间
+  uint32_t sys_buffer_timeout = 1000 * 60; //60s
+
+  //带超时保护的缓冲区item
+  #define chart sys_buffer_timeout_item
+  struct sys_buffer_timeout_item {
+    uint32_t time; //超时计时
+    charb* buff;   //缓冲数据
+  };
 #endif
 
 //当前运行阶段
@@ -324,7 +317,7 @@ struct sys_data_kv {
 
   //发送缓冲
   const byte mesh_data_buffer_size = 20;
-  RingBuf<charb*, mesh_data_buffer_size> mesh_send_buffer;
+  RingBuf<chart*, mesh_data_buffer_size> mesh_send_buffer;
 
   //回调事件
   painlessmesh::receivedCallback_t mesh_on_receive = nullptr;

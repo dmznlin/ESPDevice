@@ -79,10 +79,6 @@ charb* sys_buf_new() {
   item->val_bool = false;
   item->val_ptr = NULL;
 
-  #ifdef buf_auto_unlock
-  item->stamp = 0;
-  #endif
-
   #ifdef buf_timeout_check
   item->time = 0;
   #endif
@@ -112,7 +108,7 @@ inline bool sys_buf_invalid(charb* item) {
 /*
   date: 2025-02-24 22:11:02
   parm: 数据长度;自动释放;类型
-  desc: 从缓冲区中锁定满足长度为len的项
+  desc: 从缓冲区中锁定满足长度为len_data的项
 */
 charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type = 0) {
   if (len_data < 1 || len_data > 2048) { //1-2k
@@ -129,18 +125,6 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
   charb* tmp = sys_data_buffer;
   while (tmp != NULL)
   {
-    #ifdef buf_auto_unlock
-    if (tmp->stamp != 0 && tmp->stamp != sys_buffer_stamp) { //自动解锁
-      tmp->used = false;
-      tmp->stamp = 0;
-
-      #ifdef buf_timeout_check
-      tmp->time = 0;
-      #endif
-      sys_buffer_locked--;
-    }
-    #endif
-
     #ifdef buf_timeout_check
     if (tmp->time != 0 && GetTickcountDiff(tmp->time) > sys_buffer_timeout) { //超时
       tmp->used = false;
@@ -241,12 +225,6 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
     }
 
     if (item->data != NULL) {
-      #ifdef buf_auto_unlock
-      if (auto_unlock) { //自动释放标记
-        item->stamp = sys_buffer_stamp;
-      }
-      #endif
-
       #ifdef buf_timeout_check
       if (auto_unlock) { //超时标记
         item->time = GetTickCount();
@@ -274,10 +252,6 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
     item->used = false;
     if (reset_type) item->data_type = 0;
     sys_buffer_locked--;
-
-    #ifdef buf_auto_unlock
-    item->stamp = 0;
-    #endif
 
     #ifdef buf_timeout_check
     item->time = 0;
@@ -361,6 +335,63 @@ charb* sys_buf_status() {
   interrupts(); //unlock
   return sys_buf_fill(status.c_str());
 }
+
+#ifdef buf_timeout_check
+/*
+  date: 2025-04-10 16:24:20
+  parm: 数据长度
+  desc: 从缓冲区中锁定满足长度为len_data的项,带超时保护
+*/
+chart* sys_buf_timeout_lock(uint16_t len_data) {
+  chart* ret = NULL;
+  charb* item = sys_buf_lock(len_data, true);
+
+  if (sys_buf_valid(item)) {
+    ret = (chart*)malloc(sizeof(chart));
+    if (ret != NULL) {
+      ret->buff = item;
+      ret->time = item->time;
+    } else {
+      sys_buf_unlock(item);
+    }
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-04-10 16:32:20
+  parm: 数据项
+  desc: 验证data是否有效(true,有效)
+*/
+inline bool sys_buf_timeout_valid(chart* item) {
+  return item != NULL && item->time == item->buff->time;
+}
+
+/*
+  date: 2025-04-10 16:32:20
+  parm: 数据项
+  desc: 验证data是否无效(true,无效)
+*/
+inline bool sys_buf_timeout_invalid(chart* item) {
+  return item == NULL || item->time != item->buff->time;
+}
+
+/*
+  date: 2025-04-10 16:32:20
+  parm: 数据
+  desc: 释放数据使其可用
+*/
+void sys_buf_timeout_unlock(chart* item) {
+  if (item != NULL) {
+    if (item->time == item->buff->time) {
+      sys_buf_unlock(item->buff);
+    }
+
+    free(item);
+  }
+}
+#endif
 
 // showlog-----------------------------------------------------------------------
 /*

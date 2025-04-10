@@ -1,26 +1,26 @@
 /********************************************************************************
-  ×÷Õß: dmzn@163.com 2025-04-07
-  ÃèÊö: ÆôÓÃ/¹Ø±Õ¿ò¼Ü¿ÉÓÃµÄ¹¦ÄÜ
+  ä½œè€…: dmzn@163.com 2025-04-07
+  æè¿°: å¯ç”¨/å…³é—­æ¡†æ¶å¯ç”¨çš„åŠŸèƒ½
 
-  ±¸×¢: ½«¸ÃÎÄ¼ş¸´ÖÆµ½ÏîÄ¿ÖĞ,¶¨Òå¿ò¼Ü¹¦ÄÜ,±ÜÃâ¸Ä¶¯¿ò¼Ü´úÂë.
+  å¤‡æ³¨: å°†è¯¥æ–‡ä»¶å¤åˆ¶åˆ°é¡¹ç›®ä¸­,å®šä¹‰æ¡†æ¶åŠŸèƒ½,é¿å…æ”¹åŠ¨æ¡†æ¶ä»£ç .
 ********************************************************************************/
 #ifndef _sys_release__
 #define _sys_release__
 
 #undef debug_enabled
 #undef random_enabled
-#undef wifi_enabled
-#undef mesh_enabled
+//#undef wifi_enabled
+//#undef mesh_enabled
 #undef mqtt_enabled
 #undef ntp_enabled
-#undef ini_enabled
+//#undef ini_enabled
 #undef crc_enabled
 #undef md5_enabled
 #undef com_enabled
 #undef modbus_enabled
-#undef run_status
-#undef run_blinkled
+//#undef run_status
+//#undef run_blinkled
 //#undef buf_timeout_check
-#undef sys_auto_delay
+//#undef sys_auto_delay
 
 #endif

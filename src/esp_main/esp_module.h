@@ -1104,13 +1104,6 @@ bool do_loop_begin() {
   sys_loop_start = GetTickCount(false);
   #endif
 
-  #ifdef buf_auto_unlock
-  sys_buffer_stamp++;
-  if (sys_buffer_stamp < 1) {
-    sys_buffer_stamp = 1;
-  }
-  #endif
-
   #if defined(run_blinkled) && defined(sys_esp8266)
   if (led_bright_start == 0) { //亮灯循环开始
     led_bright_start = sys_loop_start;

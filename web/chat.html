@@ -155,7 +155,7 @@
         audio = document.getElementById("msg_snd");
 
       showMsg(
-        "系统：欢迎光临！<br>言语有礼，交流有心；<br>发言友善，沟通文明。<br><br><font color='yellow'>/help</font> 查看聊天命令",
+        "&#x1F4E2;系统：欢迎光临！<br>言语有礼，交流有心；<br>发言友善，沟通文明。<br><br><font color='yellow'>/help</font> 查看聊天命令!!",
         false,
       );
 
@@ -176,9 +176,23 @@
           ws.onmessage = function (evt) {
             if (evt.data) {
               let msg = JSON.parse(evt.data);
-              if (!broadcat && msg.data.indexOf("class='from'")) {
+              if (msg.type !== "chat") {
+                //非聊天数据
+                return false;
+              }
+
+              if (!broadcat && msg.from) {
                 //不接收广播消息
-                return fale;
+                return false;
+              }
+
+              if (msg.from) {
+                //添加消息尾巴
+                msg.data =
+                  msg.data +
+                  "<br><div class='from'>来自: " +
+                  msg.from +
+                  "</div>";
               }
 
               if (msg.data.indexOf(user + ":") === 0) {

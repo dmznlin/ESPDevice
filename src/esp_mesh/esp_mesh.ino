@@ -48,6 +48,8 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
         websocket协议:
         1.格式: {type: chat/search/control/message, data:xxx}
         2.类型: chat,聊天;search,检索;control,控制;message,消息
+        3.数据: 具体数据
+          *.chat:{type: chat, from: mesh_name, data: message}
       */
 
       charb* ptr = json_get(msg->data, "type");
@@ -60,35 +62,26 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
         sys_buf_unlock(ptr);
         server->textAll(msg->data); //发送给本服务器
 
-        ptr = json_get(msg->data, "data"); //原消息
+        ptr = json_set(msg->data, "from", mesh_name); //消息尾巴
         if (sys_buf_valid(ptr)) {
-          const char* field[] = { ptr->data,
-            "<br><div class='from'>\xE6\x9D\xA5\xE8\x87\xAA:", mesh_name, "</div>" };
-          charb* new_data = sys_buf_concat(field, 4); //消息尾巴
-          sys_buf_unlock(ptr);
+          chart* mesh_data = sys_buf_timeout_lock(strlen(ptr->data) + 1);
+          if (sys_buf_timeout_valid(mesh_data)) {
+            if (mesh_send_buffer.isFull()) {
+              chart* old_data = NULL;
+              mesh_send_buffer.lockedPop(old_data);
+              sys_buf_timeout_unlock(old_data);
+            }
 
-          if (sys_buf_valid(new_data)) {
-            ptr = json_set(msg->data, "data", new_data->data); //新消息
-            sys_buf_unlock(new_data);
-
-            if (sys_buf_valid(ptr)) {
-              new_data = sys_buf_lock(strlen(ptr->data) + 1, true);
-              if (sys_buf_valid(new_data)) {
-                if (mesh_send_buffer.isFull()) {
-                  charb* old_data;
-                  mesh_send_buffer.lockedPop(old_data);
-                  sys_buf_unlock(old_data);
-                }
-
-                strcpy(new_data->data, ptr->data);
-                if (!mesh_send_buffer.lockedPushOverwrite(new_data)) { //进入发送队列
-                  sys_buf_unlock(new_data);
-                }
-              }
-              sys_buf_unlock(ptr);
+            strcpy(mesh_data->buff->data, ptr->data);
+            if (!mesh_send_buffer.lockedPushOverwrite(mesh_data)) { //进入发送队列
+              sys_buf_timeout_unlock(mesh_data);
             }
           }
+
+          sys_buf_unlock(ptr);
         }
+      } else if (strcmp(ptr->data, "search") == 0) { //信息检索
+        sys_buf_unlock(ptr);
       }
 
       //释放消息
@@ -149,10 +142,12 @@ void loop() {
   do_loop_begin();
 
   /*在这里开始写你的代码*/
-  charb* msg;
+  chart* msg;
   while (mesh_send_buffer.lockedPop(msg)) {
-    mesh.sendBroadcast(msg->data);
-    sys_buf_unlock(msg);
+    if (sys_buf_timeout_valid(msg)) {
+      mesh.sendBroadcast(msg->buff->data);
+    }
+    sys_buf_timeout_unlock(msg);
   }
 
   /*external loop*/
