@@ -43,6 +43,10 @@
         showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
       }
     }
+  *.缓冲区超时检查:
+    1.调用 sys_buf_lock 时 auto_unlock = true,会自动设置超时标记.
+    2.超过 sys_buffer_timeout 会自动解除锁定.
+  *.依据原理: 只建议在局部变量中使用,作为极端情况的补救措施.
 
   *.当 Serial 作为硬件串口连接设备时,需打开 com_swap_pin,避免日志干扰通讯.
   *.当 step_run_setup 日志输出 Serial.print,step_run_loop 使用 Serial1.print.
@@ -136,6 +140,9 @@
 //启用缓冲自动释放
 #define buf_auto_unlock
 
+//启用缓冲区超时检查
+#define buf_timeout_check
+
 //启用自动降速
 #define sys_auto_delay
 
@@ -180,6 +187,10 @@ struct sys_buffer_item {
   #ifdef buf_auto_unlock
   uint16_t stamp; //释放标记
   #endif
+
+  #ifdef buf_timeout_check
+  uint32_t time;  //超时计时
+  #endif
   charb* next;     //next-item
 };
 
@@ -196,6 +207,11 @@ byte sys_buffer_max = 120;
 #ifdef buf_auto_unlock
 //当前有效的缓冲标记
 uint16_t sys_buffer_stamp = 1;
+#endif
+
+#ifdef buf_timeout_check
+//缓冲区item最长锁定时间
+uint32_t sys_buffer_timeout = 1000 * 60; //60s
 #endif
 
 //当前运行阶段

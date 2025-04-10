@@ -16,7 +16,7 @@ void showlog(const char* event[], const uint8_t size, bool ln = true);
   parm: 精确值
   desc: 开机后经过的计时
 */
-inline uint64_t GetTickCount(bool precise = false) {
+inline uint32_t GetTickCount(bool precise = false) {
   if (precise) {
     return micros();
   } else {
@@ -29,13 +29,13 @@ inline uint64_t GetTickCount(bool precise = false) {
   parm: 开始计时;精确值
   desc: 从from到当前的时间差
 */
-uint64_t GetTickcountDiff(uint64_t from, bool precise = false) {
-  uint64_t now = GetTickCount(precise);
+uint32_t GetTickcountDiff(uint32_t from, bool precise = false) {
+  uint32_t now = GetTickCount(precise);
   if (now >= from) {
     return now - from;
   }
 
-  return now + (UINT64_MAX) - from;
+  return now + (UINT32_MAX) - from;
 }
 
 //Desc: 同步锁定
@@ -81,6 +81,10 @@ charb* sys_buf_new() {
 
   #ifdef buf_auto_unlock
   item->stamp = 0;
+  #endif
+
+  #ifdef buf_timeout_check
+  item->time = 0;
   #endif
 
   sys_buffer_size++;
@@ -129,6 +133,18 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
     if (tmp->stamp != 0 && tmp->stamp != sys_buffer_stamp) { //自动解锁
       tmp->used = false;
       tmp->stamp = 0;
+
+      #ifdef buf_timeout_check
+      tmp->time = 0;
+      #endif
+      sys_buffer_locked--;
+    }
+    #endif
+
+    #ifdef buf_timeout_check
+    if (tmp->time != 0 && GetTickcountDiff(tmp->time) > sys_buffer_timeout) { //超时
+      tmp->used = false;
+      tmp->time = 0;
       sys_buffer_locked--;
     }
     #endif
@@ -231,6 +247,12 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
       }
       #endif
 
+      #ifdef buf_timeout_check
+      if (auto_unlock) { //超时标记
+        item->time = GetTickCount();
+      }
+      #endif
+
       item->used = true; //锁定
       item->data_type = data_type;
       sys_buffer_locked++;
@@ -238,9 +260,6 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
   }
 
   sys_sync_leave(); //unlock
-  if (sys_buf_invalid(item)) {
-    showlog("sys_buf_lock: failure,size " + String(sys_buffer_size));
-  }
   return item;
 }
 
@@ -258,6 +277,10 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
 
     #ifdef buf_auto_unlock
     item->stamp = 0;
+    #endif
+
+    #ifdef buf_timeout_check
+    item->time = 0;
     #endif
     sys_sync_leave(); //unlock
   }

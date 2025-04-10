@@ -389,14 +389,16 @@ void ini_load_cfg() {
   cfg = ini_getval("system", "dev_pwd");
   if (cfg.length() > 0) str2char(cfg, dev_pwd, false);
 
-  cfg = ini_getval("system", "mesh_name");
-  if (cfg.length() > 0) str2char(cfg, mesh_name, false);
-
   cfg = ini_getval("performance", "sys_buffer_max");
   if (cfg.length() > 0) {
     long val = cfg.toInt();
     if (val > 0 && val < UINT8_MAX) sys_buffer_max = val;
   }
+
+  #ifdef mesh_enabled
+  cfg = ini_getval("system", "mesh_name");
+  if (cfg.length() > 0) str2char(cfg, mesh_name, false);
+  #endif
 
   #ifdef sys_auto_delay
     cfg = ini_getval("performance", "sys_loop_interval");
@@ -524,7 +526,9 @@ void mqtt_send(const char* data, bool retained = false) {
 
   item->val_bool = retained;
   strcpy(item->data, data);
-  mqtt_send_buffer.lockedPushOverwrite(item);
+  if (!mqtt_send_buffer.lockedPushOverwrite(item)) {
+    sys_buf_unlock(item);
+  }
 }
 #endif
 
