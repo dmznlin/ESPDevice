@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Cache-Control" content="max-age" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>在线商品检索</title>
+    <style>
+      body {
+        margin: 0px 5px 100px 5px;
+        background-color: white;
+        background: url("img/chat.png") no-repeat center fixed;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+      }
+
+      li {
+        list-style: none;
+        overflow: hidden;
+        margin: 0px 0px;
+        opacity: 0.9;
+      }
+
+      #editContent {
+        width: calc(100vw - 190px);
+        height: 27px;
+        border: 1px solid #7192c7;
+        border-radius: 5px;
+        font-size: 18px;
+        margin-top: 5px;
+        padding-left: 5px;
+      }
+
+      #send {
+        width: 68px;
+        height: 27px;
+        right: 8px;
+        position: absolute;
+        margin-top: 6px;
+        border: 1px solid #7192c7;
+      }
+
+      .toolbar {
+        position: fixed;
+        bottom: 10px;
+        right: 30px;
+        background-color: rgba(1, 139, 141, 0.3);
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 10px;
+        width: calc(100vw - 85px);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        transition: all 0.3s ease;
+        display: flex;
+        gap: 10px;
+      }
+
+      .toolbar.collapsed {
+        transform: translateX(calc(100vw - 60px));
+      }
+
+      .toggle-indicator {
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+      }
+
+      .toolbar-content button:hover {
+        background-color: #45a049;
+      }
+
+      table {
+        text-align: center;
+        font-size: 0.9em;
+        width: calc(100vw - 20px);
+        margin: 10px auto 0px auto;
+        border-collapse: collapse;
+      }
+
+      table td,
+      table th {
+        color: #666;
+        padding: 3px 5px;
+        border: 1px solid #cad9ea;
+      }
+
+      table tr td:nth-child(1) {
+        width: 30px;
+      }
+
+      table tr td:nth-child(3) {
+        width: 50px;
+      }
+
+      table tr td:nth-child(4) {
+        width: 80px;
+      }
+
+      table thead th {
+        background-color: rgba(1, 139, 141, 0.1);
+      }
+
+      table thead td {
+        text-align: left;
+        background-color: rgba(1, 139, 141, 0.2);
+      }
+
+      table tr:nth-child(odd) {
+        background: #fff;
+      }
+
+      table tr:nth-child(even) {
+        background: #f5fafa;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <ul id="content"></ul>
+      <div class="toolbar" id="toolbar">
+        <div class="toggle-indicator" onclick="toggleToolbar()">☞</div>
+        <div class="toolbar-content">
+          <label id="labelHint"></label>
+          <input type="text" id="editContent" maxlength="100" />
+          <input type="submit" id="send" value="查找" />
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function toggleToolbar() {
+        const toolbar = document.getElementById("toolbar");
+        toolbar.classList.toggle("collapsed");
+
+        // 切换指示箭头方向
+        const indicator = document.querySelector(".toggle-indicator");
+        if (toolbar.classList.contains("collapsed")) {
+          indicator.textContent = "◀";
+        } else {
+          indicator.textContent = "☞";
+        }
+      }
+
+      // 初始状态为展开
+      document.addEventListener("DOMContentLoaded", function () {
+        const toolbar = document.getElementById("toolbar");
+        toolbar.classList.remove("collapsed");
+      });
+    </script>
+
+    <script type="text/javascript">
+      let ws = "",
+        action = "search",
+        hintSearch = "请输入查找的内容:",
+        hintSearching = "正在联网查询,请稍后...",
+        hint = document.getElementById("labelHint"),
+        cont = document.getElementById("content"),
+        txar = document.getElementById("editContent"),
+        send = document.getElementById("send");
+
+      function buildTable(data) {
+        let items = JSON.parse(data);
+        if (items.type !== action) {
+          return "";
+        }
+
+        let res =
+          '<table><thead><tr><th colspan="4">' +
+          items.shop +
+          "</th></tr></thead><tbody>";
+
+        for (let i = 1; i <= items.data; i++) {
+          res =
+            res +
+            "<tr><td>" +
+            items[`a${i}`] +
+            "</td><td>" +
+            items[`b${i}`] +
+            "</td><td>" +
+            items[`c${i}`] +
+            "</td><td>" +
+            items[`d${i}`] +
+            "</td></tr>";
+        }
+
+        res =
+          res +
+          '</tbody><thead><tr><th>店址</th><td colspan="3">' +
+          items.addr +
+          "</td></tr></thead></<table>";
+        return res;
+      }
+
+      function test() {
+        let sendObj = {
+          type: action,
+          shop: "蜜雪冰城",
+          addr: "二七广场亚细亚负一楼",
+          data: 3,
+          a1: "1",
+          b1: "鲜榨柠檬",
+          c1: "4.00",
+          d1: "夏日救星",
+          a2: "2",
+          b2: "新品甜筒",
+          c2: "2.00",
+          d2: "镇店之宝",
+          a3: "3",
+          b3: "糯香花茶",
+          c3: "5.00",
+          d3: "新品上市",
+        };
+
+        showResult(buildTable(JSON.stringify(sendObj)));
+      }
+
+      test();
+
+      function WebSocketForSearch() {
+        if ("WebSocket" in window) {
+          const hostPort = "ws://" + location.host + "/ws";
+          ws = new WebSocket(hostPort);
+
+          ws.onopen = function () {
+            hint.innerText = "请输入查找的内容:";
+            let sendObj = {
+              type: action,
+              data: "",
+            };
+
+            ws.send(JSON.stringify(sendObj));
+          };
+
+          ws.onmessage = function (evt) {
+            if (evt.data) {
+              let res = buildTable(evt.data);
+              if (res !== "") {
+                showResult(res);
+              }
+            }
+          };
+
+          ws.onclose = function () {
+            hint.innerText = hintSearch;
+          };
+        } else {
+          alert("您的浏览器不支持 WebSocket!");
+        }
+      }
+
+      send.onclick = function () {
+        if (!ws) {
+          alert("未连接到服务器");
+          return false;
+        }
+
+        let sendObj = {
+          type: action,
+          data: txar.value,
+        };
+
+        ws.send(JSON.stringify(sendObj));
+        txar.value = "";
+        send.disabled = true;
+
+        hint.innerText = hintSearching;
+        setTimeout(function () {
+          send.disabled = false;
+          hint.innerText = hintSearch;
+        }, 5000);
+      };
+
+      document.onkeydown = function (ev) {
+        ev = ev || window.event;
+        if (ev.keyCode === 13) {
+          cont.innerHTML = "";
+          send.click();
+        }
+      };
+
+      function showResult(items) {
+        let span = document.createElement("span"),
+          li = document.createElement("li");
+
+        span.innerHTML = items;
+        li.appendChild(span);
+        cont.appendChild(li);
+
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: "smooth", // 平滑滚动（可选）
+        });
+      }
+
+      WebSocketForSearch();
+    </script>
+  </body>
+</html>
