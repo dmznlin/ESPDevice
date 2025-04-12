@@ -103,6 +103,9 @@
 //启用随机数
 #define random_enabled
 
+//LittleFS文件系统
+#define lfs_enabled
+
 //启用WiFi
 #define wifi_enabled
 
@@ -264,8 +267,14 @@ struct sys_data_kv {
 #endif
 
 #if defined(wifi_fs_autoconfig) || defined(ini_enabled)
+  #ifndef lfs_enabled
+    //wifi_fs ini 需要文件系统支持
+    #define lfs_enabled
+  #endif
+#endif
+
+#ifdef lfs_enabled
   #include <LittleFS.h>
-  #define lfs_enabled
 
   //文件系统(启动)正常
   bool lfs_isok = false;

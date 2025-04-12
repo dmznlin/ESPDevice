@@ -360,6 +360,27 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
 }
 
 /*
+  date: 2025-04-12 10:44:20
+  parm: 缓冲数据
+  desc: 为缓冲数据添加超时保护
+*/
+chart* sys_buf_timeout_lock(charb* item) {
+  chart* ret = NULL;
+  if (sys_buf_valid(item)) {
+    ret = (chart*)malloc(sizeof(chart));
+    if (ret != NULL) {
+      if (item->time == 0) {
+        item->time = GetTickCount();
+      }
+
+      ret->buff = item;
+      ret->time = item->time;
+    }
+  }
+  return ret;
+}
+
+/*
   date: 2025-04-10 16:32:20
   parm: 数据项
   desc: 验证data是否有效(true,有效)
@@ -710,6 +731,7 @@ charb* json_multiset(const char* data, sys_data_kv vals[], uint8_t size) {
   }
   return ret;
 }
+
 //字节---------------------------------------------------------------------------
 /*
   date: 2025-03-20 10:07:10

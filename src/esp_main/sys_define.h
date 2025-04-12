@@ -9,6 +9,7 @@
 
 #undef debug_enabled
 #undef random_enabled
+//#undef lfs_enabled
 #undef wifi_enabled
 #undef mesh_enabled
 #undef mqtt_enabled

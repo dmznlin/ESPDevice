@@ -226,6 +226,33 @@ void decode_now(int* year, int* mon, int* day, int* hour, int* min, int* second)
 }
 #endif
 
+//文件系统-----------------------------------------------------------------------
+#ifdef lfs_enabled
+charb* file_load_text(const char* filename) {
+  File file = LittleFS.open(filename, "r");
+  if (!file) {
+    showlog("file_text_load: open file failure");
+    return NULL;
+  }
+
+  size_t file_size = file.size();
+  if (file_size == 0) {
+    file.close();
+    showlog("file_text_load: file is empty");
+    return NULL;
+  }
+
+  charb* ret = sys_buf_lock(file_size + 1, true);
+  if (sys_buf_valid(ret)) {
+    size_t bytesRead = file.readBytes(ret->data, file_size);
+    ret->data[bytesRead] = '\0';
+  }
+
+  file.close();
+  return ret;
+}
+#endif
+
 //INI----------------------------------------------------------------------------
 #ifdef ini_enabled
 /*

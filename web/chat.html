@@ -7,6 +7,7 @@
     <title>聊天室</title>
     <style>
       body {
+        margin: 0px 5px 85px 5px;
         background-color: white;
         background: url("img/chat.png") no-repeat center fixed;
       }
@@ -90,7 +91,7 @@
       }
     </style>
   </head>
-  <body style="margin: 0px 5px 85px 5px">
+  <body>
     <div>
       <ul id="content"></ul>
       <div class="toolbar" id="toolbar">
@@ -146,6 +147,7 @@
       let time = new Date(),
         user = flag + time.getHours() + time.getMinutes() + time.getSeconds(),
         ws = "",
+        action = "chat",
         peer = "", //私聊id
         sound = true, //消息提示声音
         broadcat = true, //接收广播消息
@@ -166,7 +168,7 @@
 
           ws.onopen = function () {
             let sendObj = {
-              type: "chat",
+              type: action,
               data: user + ": 进入聊天室",
             };
 
@@ -176,7 +178,7 @@
           ws.onmessage = function (evt) {
             if (evt.data) {
               let msg = JSON.parse(evt.data);
-              if (msg.type !== "chat") {
+              if (msg.type !== action) {
                 //非聊天数据
                 return false;
               }
@@ -227,10 +229,10 @@
         if (txar.value.toLowerCase().indexOf("/help") === 0) {
           showMsg(
             "①/nick name: 修改昵称<br> \
-                 ②/pull name: 小窗私聊<br> \
-                 ③/go: 离开私聊回到大厅<br> \
-                 ④/ding: 打开或关闭提示音<br> \
-                 ⑤/quiet: 接收或拒接广播消息",
+                     ②/pull name: 小窗私聊<br> \
+                     ③/go: 离开私聊回到大厅<br> \
+                     ④/ding: 打开或关闭提示音<br> \
+                     ⑤/quiet: 接收或拒接广播消息",
             true,
           );
           txar.value = "";
@@ -281,7 +283,7 @@
         }
 
         let sendObj = {
-          type: "chat",
+          type: action,
           data: user + ": " + txar.value,
         };
 
