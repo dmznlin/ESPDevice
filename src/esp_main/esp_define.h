@@ -207,6 +207,10 @@ byte sys_buffer_max = 120;
   struct sys_buffer_timeout_item {
     uint32_t time; //超时计时
     charb* buff;   //缓冲数据
+
+    void* val_ptr;    //pointer
+    bool val_bool;    //bool
+    int32_t val_int;  //int
   };
 #endif
 

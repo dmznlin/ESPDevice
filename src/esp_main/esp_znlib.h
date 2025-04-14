@@ -127,8 +127,8 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
   {
     #ifdef buf_timeout_check
     if (tmp->time != 0 && GetTickcountDiff(tmp->time) > sys_buffer_timeout) { //超时
-      tmp->used = false;
       tmp->time = 0;
+      tmp->used = false;
       sys_buffer_locked--;
     }
     #endif
@@ -360,27 +360,6 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
 }
 
 /*
-  date: 2025-04-12 10:44:20
-  parm: 缓冲数据
-  desc: 为缓冲数据添加超时保护
-*/
-chart* sys_buf_timeout_lock(charb* item) {
-  chart* ret = NULL;
-  if (sys_buf_valid(item)) {
-    ret = (chart*)malloc(sizeof(chart));
-    if (ret != NULL) {
-      if (item->time == 0) {
-        item->time = GetTickCount();
-      }
-
-      ret->buff = item;
-      ret->time = item->time;
-    }
-  }
-  return ret;
-}
-
-/*
   date: 2025-04-10 16:32:20
   parm: 数据项
   desc: 验证data是否有效(true,有效)
@@ -412,6 +391,42 @@ void sys_buf_timeout_unlock(chart* item) {
     free(item);
   }
 }
+
+/*
+  date: 2025-04-12 10:44:20
+  parm: 缓冲数据;复制数据
+  desc: 基于item创建带超时保护的数据
+*/
+chart* sys_buf_timeout_lock(charb* item, bool copy = false) {
+  if (sys_buf_invalid(item)) {
+    return NULL;
+  }
+
+  if (copy) {
+    chart* ret = sys_buf_timeout_lock(strlen(item->data) + 1); //+1 for \0
+    if (sys_buf_timeout_valid(ret)) {
+      strcpy(ret->buff->data, item->data);//copy data
+    }
+
+    sys_buf_unlock(item);
+    return ret;
+  }
+
+  chart* ret = (chart*)malloc(sizeof(chart));
+  if (ret != NULL) {
+    if (item->time == 0) {
+      item->time = GetTickCount();
+    }
+
+    ret->buff = item;
+    ret->time = item->time;
+  } else {
+    sys_buf_unlock(item);
+  }
+
+  return ret;
+}
+
 #endif
 
 // showlog-----------------------------------------------------------------------
@@ -490,6 +505,21 @@ void showlog(const char* event[], const uint8_t size, bool ln) {
 }
 
 // 字符串------------------------------------------------------------------------
+charb* int2str(int64_t val, const char* format = NULL) {
+  const char* fmt = format ? format : "%lld"; //大整数使用%lld
+  int size = snprintf(NULL, 0, fmt, val);
+  if (size < 0) {
+    return NULL;
+  }
+
+  charb* ret = sys_buf_lock(size + 1, true);
+  if (sys_buf_valid(ret)) {
+    snprintf(ret->data, size + 1, fmt, val);
+  }
+
+  return ret;
+}
+
 /*
   date: 2025-02-19 10:10:20
   parm: 键值字符串;键名;默认值;分隔符
@@ -704,6 +734,21 @@ charb* json_set(const char* data, const char* key, const char* val) {
       strlen(key) + strlen(val) + 8 + 1, ",\"%s\": \"%s\"}", key, val); //k-v
     ret->data[new_len] = '\0'; //end
     return ret;
+  }
+
+  return ret;
+}
+
+/*
+  date: 2025-04-13 09:56:10
+  parm: 数据;键名;值
+  desc: 设置data中key的值
+*/
+charb* json_set(const char* data, const char* key, charb* val, bool unlock = true) {
+  charb* ret = NULL;
+  if (sys_buf_valid(val)) {
+    ret = json_set(data, key, val->data);
+    if (unlock) sys_buf_unlock(val);
   }
 
   return ret;

@@ -25,7 +25,7 @@
       }
 
       #editContent {
-        width: calc(100vw - 190px);
+        width: calc(100vw - 170px);
         height: 27px;
         border: 1px solid #7192c7;
         border-radius: 5px;
@@ -266,9 +266,10 @@
 
         ws.send(JSON.stringify(sendObj));
         txar.value = "";
+		cont.innerHTML = "";		
         send.disabled = true;
-
         hint.innerText = hintSearching;
+		
         setTimeout(function () {
           send.disabled = false;
           hint.innerText = hintSearch;
