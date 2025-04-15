@@ -261,6 +261,18 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
 }
 
 /*
+  date: 2025-04-15 21:26:02
+  parm: 数据;重置类型
+  desc: 释放数据并设地址为空
+*/
+void sys_buf_unlock(charb** item, bool reset_type = false) {
+  if (item != NULL) {
+    sys_buf_unlock(*item, reset_type);
+    *item = NULL;
+  }
+}
+
+/*
   date: 2025-03-01 10:12:20
   parm: 数据
   desc: 生成内容为str的buf项
@@ -394,6 +406,18 @@ void sys_buf_timeout_unlock(chart* item) {
     }
 
     free(item);
+  }
+}
+
+/*
+  date: 2025-04-15 21:28:20
+  parm: 数据
+  desc: 释放数据并设变量为空
+*/
+void sys_buf_timeout_unlock(chart** item) {
+  if (item != NULL) {
+    sys_buf_timeout_unlock(*item);
+    *item = NULL;
   }
 }
 
