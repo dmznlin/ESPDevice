@@ -19,7 +19,7 @@
 #undef md5_enabled
 #undef com_enabled
 #undef modbus_enabled
-#undef run_status
+//#undef run_status
 #undef run_blinkled
 //#undef buf_timeout_check
 #undef sys_auto_delay

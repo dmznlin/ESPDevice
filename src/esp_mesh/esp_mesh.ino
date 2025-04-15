@@ -104,7 +104,11 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
         chart* mesh_data = sys_buf_timeout_lock(json_set(msg->data, "from", mesh_name)); //消息尾巴
         mesh_send(mesh_data, -1); //广播至mesh
-      } else
+
+        sys_buf_unlock(msg);
+        return;
+      }
+
       //--------------------------------------------------------------------------
       if (strcmp(ptr->data, action_search) == 0) { //信息检索
         sys_buf_unlock(ptr);
@@ -117,7 +121,7 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
           if (is_empty || is_local) { //检索内容为空 或 包含店名
             load_goods();
-            if (sys_buf_timeout_valid(shop_goods)) {
+            if (sys_buf_timeout_valid(shop_goods, true)) {
               server->text(client->id(), shop_goods->buff->data);
             }
           }
@@ -128,10 +132,10 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
             mesh_send(mesh_data, -1); //广播至mesh
           }
         }
-      }
 
-      //释放消息
-      sys_buf_unlock(msg);
+        sys_buf_unlock(msg);
+        return;
+      }
     }
     break;
   default:
@@ -162,6 +166,7 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
     return;
   }
 
+  //-----------------------------------------------------------------------------
   if (strcmp(ptr->data, action_search) == 0) { //检索数据
     sys_buf_unlock(ptr);
     ptr = json_get(msg.c_str(), "from");
@@ -174,21 +179,38 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
         wifi_fs_server.getWebSocket()->text(atoi(ptr->data), msg.c_str()); //发给前端
         sys_buf_unlock(ptr);
       }
-    } else { //检索请求
+
+      return;
+    }
+
+    //---------------------------------------------------------------------------
+    ptr = json_get(msg.c_str(), "data");
+    if (sys_buf_valid(ptr)) { //检索数据
       if (strstr(mesh_name, ptr->data) != NULL) { //包含店名
         sys_buf_unlock(ptr);
-        load_goods();
+        ptr = json_get(msg.c_str(), "id"); //ws.id
+        if (sys_buf_invalid(ptr)) return;
 
-        if (sys_buf_timeout_valid(shop_goods)) {
-          ptr = json_set(shop_goods->buff->data, "from", mesh_name); //应答节点
-          chart* mesh_data = sys_buf_timeout_lock(ptr);
+        load_goods();
+        if (sys_buf_timeout_valid(shop_goods, true)) {
+          sys_data_kv items[] = {{"from", mesh_name}, {"id", ptr->data}};
+          charb* goods = json_multiset(shop_goods->buff->data, items, 2); //节点应答
+          sys_buf_unlock(ptr);
+
+          chart* mesh_data = sys_buf_timeout_lock(goods);
           mesh_send(mesh_data, from); //发送至mesh
         }
+
+        return;
       }
+
+      //生成检索结果
     }
 
     return;
   }
+
+  sys_buf_unlock(ptr);
 }
 #endif
 

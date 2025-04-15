@@ -361,11 +361,16 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
 
 /*
   date: 2025-04-10 16:32:20
-  parm: 数据项
+  parm: 数据项;延后释放
   desc: 验证data是否有效(true,有效)
 */
-inline bool sys_buf_timeout_valid(chart* item) {
-  return item != NULL && item->time == item->buff->time;
+inline bool sys_buf_timeout_valid(chart* item, bool delay = false) {
+  bool ret = item != NULL && item->time == item->buff->time;
+  if (ret && delay) {
+    item->buff->time = GetTickCount();
+    item->time = item->buff->time;
+  }
+  return ret;
 }
 
 /*
@@ -592,6 +597,7 @@ charb* str_tagsub(const char* data, const char left, const char right) {
   return ret;
 }
 
+// json--------------------------------------------------------------------------
 /*
   date: 2025-04-09 11:06:10
   parm: 数据;键名
@@ -759,7 +765,7 @@ charb* json_set(const char* data, const char* key, charb* val, bool unlock = tru
   parm: 数据;键值对;数组大小
   desc: 使用kv批量设置data的值
 */
-charb* json_multiset(const char* data, sys_data_kv vals[], uint8_t size) {
+charb* json_multiset(const char* data, struct sys_data_kv vals[], uint8_t size) {
   charb* ret = NULL;
   charb* ptr;
   for (uint8_t idx = 0; idx < size; idx++) {
@@ -775,6 +781,38 @@ charb* json_multiset(const char* data, sys_data_kv vals[], uint8_t size) {
     }
   }
   return ret;
+}
+
+/*
+  date: 2025-04-14 18:33:10
+  parm: 键值对;数组大小
+  desc: 使用kv构建json字符串
+*/
+charb* json_build(struct sys_data_kv items[], size_t size) {
+  size_t json_len = 1; //左括号:{
+  for (size_t i = 0; i < size; i++) {
+    //最后一行: 逗号为 },空格为 \0
+    json_len += strlen(items[i].key) + strlen(items[i].value) + 8; //"key":_"value",_
+  }
+
+  charb* json_str = sys_buf_lock(json_len, true);
+  if (sys_buf_invalid(json_str)) {
+    return NULL;
+  }
+
+  json_str->data[0] = '{';
+  size_t pos = 1;
+
+  for (size_t i = 0; i < size; ++i) {
+    pos += snprintf(json_str->data + pos, json_len - pos, "\"%s\": \"%s\"", items[i].key, items[i].value);
+    if (i < size - 1) {
+      pos += snprintf(json_str->data + pos, json_len - pos, ", ");
+    }
+  }
+
+  json_str->data[pos] = '}';
+  json_str->data[pos + 1] = '\0';
+  return json_str;
 }
 
 //字节---------------------------------------------------------------------------
