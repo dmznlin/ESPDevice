@@ -469,8 +469,11 @@ struct sys_data_kv {
 
 //运行监控-----------------------------------------------------------------------
 #ifdef  run_status
+  //状态序列
+  uint32_t run_status_id = 0;
+
   //上次发送计时
-  uint64_t run_status_lastsend = 0;
+  uint32_t run_status_lastsend = 0;
 
   //free head size
   uint32_t size_heap_last = 0;
@@ -548,7 +551,7 @@ print("};")
 
 #ifdef sys_loop_ticktime
   //本次loop开始计时
-  uint64_t sys_loop_start = 0;
+  uint32_t sys_loop_start = 0;
 #endif
 
 #endif

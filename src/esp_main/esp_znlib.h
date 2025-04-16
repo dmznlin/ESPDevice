@@ -198,7 +198,7 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
         }
       }
 
-      item->data = (char*)malloc(new_len);
+      item->data = (char*)malloc(new_len > len_data ? new_len : len_data);
       if (item->data != NULL) {
         item->size = new_len;
       }
@@ -334,7 +334,7 @@ charb* sys_buf_concat(const char* str[], const uint8_t size) {
   desc: 显示缓冲区内存申请状态
 */
 charb* sys_buf_status() {
-  noInterrupts();//sync-lock
+  sys_sync_enter();//sync-lock
   String status = "";
   charb* tmp = sys_data_buffer;
 
@@ -345,7 +345,7 @@ charb* sys_buf_status() {
     tmp = tmp->next;
   }
 
-  interrupts(); //unlock
+  sys_sync_leave(); //unlock
   return sys_buf_fill(status.c_str());
 }
 
@@ -407,12 +407,10 @@ inline bool sys_buf_timeout_invalid(chart* item) {
 */
 void sys_buf_timeout_unlock(chart* item) {
   if (item != NULL) {
-    sys_sync_enter();
     if (item->time == item->buff->time) {
       sys_buf_unlock(item->buff);
     }
 
-    sys_sync_leave();
     free(item);
   }
 }

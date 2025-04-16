@@ -348,9 +348,16 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
         charb* id = json_get(msg.c_str(), "id"); //ws.id
         if (sys_buf_invalid(id)) return;
 
-        sys_data_kv items[] = {{"from", mesh_name}, {"id", id->data}};
+        charb* node = int2str(mesh.getNodeId());
+        if (sys_buf_invalid(node)) {
+          sys_buf_unlock(id);
+          return;
+        }
+
+        sys_data_kv items[] = {{"from", node->data}, {"id", id->data}};
         charb* goods = json_multiset(shop_goods->buff->data, items, 2); //节点应答
         sys_buf_unlock(id);
+        sys_buf_unlock(node);
 
         chart* mesh_data = sys_buf_timeout_lock(goods);
         mesh_send(mesh_data, from); //发送至mesh
@@ -370,10 +377,18 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
         return;
       }
 
-      sys_data_kv items[] = { {"from", mesh_name}, {"id", id->data} };
+      charb* node = int2str(mesh.getNodeId());
+      if (sys_buf_invalid(node)) {
+        sys_buf_unlock(id);
+        sys_buf_unlock(goods);
+        return;
+      }
+
+      sys_data_kv items[] = { {"from", node->data}, {"id", id->data} };
       ptr = json_multiset(goods->data, items, 2); //节点应答
 
       sys_buf_unlock(id);
+      sys_buf_unlock(node);
       sys_buf_unlock(goods);
 
       chart* mesh_data = sys_buf_timeout_lock(ptr);
@@ -415,7 +430,7 @@ void loop() {
   /*在这里开始写你的代码*/
   chart* msg;
   while (mesh_send_buffer.lockedPop(msg)) {
-    if (sys_buf_timeout_valid(msg)) {
+    if (sys_buf_timeout_valid(msg, true)) {
       if (msg->val_int < 0) { //广播
         mesh.sendBroadcast(msg->buff->data, msg->val_bool);
       } else {

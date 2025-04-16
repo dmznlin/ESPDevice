@@ -897,7 +897,9 @@ void sys_run_status() {
     //now free heap
     uint32_t size_heap_now = ESP.getFreeHeap();
 
-    String info = "\nBufferSize: ";
+    String info = "\nID: ";
+    info.concat(run_status_id++);
+    info.concat("\nBufferSize: ");
     info.concat(sys_buffer_size);
     info.concat("\nBufferLocked: ");
     info.concat(sys_buffer_locked);
