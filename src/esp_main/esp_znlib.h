@@ -73,11 +73,10 @@ charb* sys_buf_new() {
 
   item->data_type = 0;
   item->data = NULL;
+  item->size = 0;
   item->len = 0;
   item->next = NULL;
   item->used = false;
-  item->val_bool = false;
-  item->val_ptr = NULL;
 
   #ifdef buf_timeout_check
   item->time = 0;
@@ -110,7 +109,7 @@ inline bool sys_buf_invalid(charb* item) {
   parm: 数据长度;自动释放;类型
   desc: 从缓冲区中锁定满足长度为len_data的项
 */
-charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type = 0) {
+charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data_type = 0) {
   if (len_data < 1 || len_data > 2048) { //1-2k
     return NULL;
   }
@@ -139,12 +138,12 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
       continue;
     }
 
-    if (tmp->len >= len_data) { //长度满足
+    if (tmp->size >= len_data) { //长度满足
       item = tmp;
       break;
     }
 
-    if (item_first == NULL || item_first->len < tmp->len) { //首个可用项,或长度优先
+    if (item_first == NULL || item_first->size < tmp->size) { //首个可用项,或长度优先
       item_first = tmp;
     }
 
@@ -168,7 +167,8 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
   }
 
   if (item != NULL) { //命中项
-    if (item->len < 1) { //未申请空间
+    if (item->size < 1) { //未申请空间
+      uint16_t new_len = len_data;
       if (data_type == 0) { //不带类型按大的申请,带类型的按需分配
         /*
           1.缓冲大小,正常会从小 -> 到大.
@@ -177,43 +177,43 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
         */
         if (sys_buffer_size > 0) {
           if (sys_buffer_size % 100 == 0) {
-            len_data = 2048;
+            new_len = 2048;
           }
           else if (sys_buffer_size % 50 == 0) {
-            len_data = 1024;
+            new_len = 1024;
           }
           else if (sys_buffer_size % 10 == 0) {
-            len_data = 512;
+            new_len = 512;
           }
         }
 
-        if (len_data < 10) {
-          len_data = len_data * 5;
+        if (new_len < 10) {
+          new_len = new_len * 5;
         }
-        else if (len_data < 50) {
-          len_data = len_data * 3;
+        else if (new_len < 50) {
+          new_len = new_len * 3;
         }
-        else if (len_data < 100) {
-          len_data = len_data * 2;
+        else if (new_len < 100) {
+          new_len = new_len * 2;
         }
       }
 
-      item->data = (char*)malloc(len_data);
+      item->data = (char*)malloc(new_len);
       if (item->data != NULL) {
-        item->len = len_data;
+        item->size = new_len;
       }
-    } else if (item->len < len_data) { //长度不够重新分配
+    } else if (item->size < len_data) { //长度不够重新分配
       #ifdef debug_enabled
-      byte old_len = item->len;
+      byte old_len = item->size;
       #endif
 
       char* data_ptr = item->data;
-      item->len = 0;
+      item->size = 0;
       item->data = (char*)realloc(data_ptr, len_data);
 
       if (item->data != NULL) {
         //appy new memory
-        item->len = len_data;
+        item->size = len_data;
       } else {
         //free old memory
         free(data_ptr);
@@ -233,6 +233,7 @@ charb* sys_buf_lock(uint16_t len_data, bool auto_unlock = false, byte data_type 
 
       item->used = true; //锁定
       item->data_type = data_type;
+      item->len = len_data;
       sys_buffer_locked++;
     }
   }
@@ -339,7 +340,7 @@ charb* sys_buf_status() {
 
   while (tmp != NULL)
   {
-    status.concat(tmp->len);
+    status.concat(tmp->size);
     status.concat(" ");
     tmp = tmp->next;
   }
@@ -359,7 +360,8 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
   charb* item = sys_buf_lock(len_data, true);
 
   if (sys_buf_valid(item)) {
-    ret = (chart*)malloc(sizeof(chart));
+    //malloc and reset
+    ret = (chart*)calloc(1, sizeof(chart));
     if (ret != NULL) {
       ret->buff = item;
       ret->time = item->time;
@@ -377,11 +379,15 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
   desc: 验证data是否有效(true,有效)
 */
 inline bool sys_buf_timeout_valid(chart* item, bool delay = false) {
+  if (delay) sys_sync_enter();
   bool ret = item != NULL && item->time == item->buff->time;
+
   if (ret && delay) {
     item->buff->time = GetTickCount();
     item->time = item->buff->time;
   }
+
+  if (delay) sys_sync_leave();
   return ret;
 }
 
@@ -401,10 +407,12 @@ inline bool sys_buf_timeout_invalid(chart* item) {
 */
 void sys_buf_timeout_unlock(chart* item) {
   if (item != NULL) {
+    sys_sync_enter();
     if (item->time == item->buff->time) {
       sys_buf_unlock(item->buff);
     }
 
+    sys_sync_leave();
     free(item);
   }
 }
@@ -432,16 +440,16 @@ chart* sys_buf_timeout_lock(charb* item, bool copy = false) {
   }
 
   if (copy) {
-    chart* ret = sys_buf_timeout_lock(strlen(item->data) + 1); //+1 for \0
+    chart* ret = sys_buf_timeout_lock(item->len);
     if (sys_buf_timeout_valid(ret)) {
-      strcpy(ret->buff->data, item->data);//copy data
+      memcpy(ret->buff->data, item->data, item->len);
     }
 
-    sys_buf_unlock(item);
     return ret;
   }
 
-  chart* ret = (chart*)malloc(sizeof(chart));
+  //malloc and reset
+  chart* ret = (chart*)calloc(1, sizeof(chart));
   if (ret != NULL) {
     if (item->time == 0) {
       item->time = GetTickCount();
@@ -755,13 +763,15 @@ charb* json_set(const char* data, const char* key, const char* val) {
   end = strstr(ptr_data, "}");
   if (end == NULL) return NULL; // Invalid format
 
-  //新增7: ,"": "" | 不包括右大括号
+  //新增7: ,"":_"" | 不包括右大括号
   size_t new_len = strlen(ptr_data) + strlen(key) + strlen(val) + 7;
   ret = sys_buf_lock(new_len + 1, true);
   if (sys_buf_valid(ret)) {
     strncpy(ret->data, ptr_data, end - ptr_data); //before end
-    snprintf(ret->data + (end - ptr_data),
-      strlen(key) + strlen(val) + 8 + 1, ",\"%s\": \"%s\"}", key, val); //k-v
+    snprintf(ret->data + (end - ptr_data), strlen(key) + strlen(val) + 8 + 1,
+      strlen(ptr_data) > 3 ? ",\"%s\": \"%s\"}" : "\"%s\": \"%s\"}", key, val);
+    //key-value,json不为空时添加逗号
+
     ret->data[new_len] = '\0'; //end
     return ret;
   }

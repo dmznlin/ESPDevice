@@ -27,18 +27,6 @@
     sys_buf_unlock(ptr);
   *.根据需要调整 sys_buffer_max,避免缓冲不够 或 内存爆满.
 
-  *.缓冲区支持带类型的指针,如:
-    charb* ptr = sys_buf_lock(10, true, 1); //type=1
-    if (sys_buf_valid(ptr)) {
-      if (!ptr->val_ptr) {
-        ptr->val_ptr = (void*)malloc(sizeof(uint16_t));
-        *(uint16*)ptr->val_ptr = 1024;
-        showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
-      } else {
-        showlog(sys_buf_fill(String(*(uint16*)ptr->val_ptr).c_str()));
-      }
-    }
-
   *.缓冲区超时检查:
     1.调用 sys_buf_lock 时 auto_unlock = true,会自动设置超时标记.
     2.超过 sys_buffer_timeout 会自动解除锁定.
@@ -46,6 +34,15 @@
   *.使用原则:
     1.同函数调用 sys_buf_lock;
     2.跨函数调用 sys_buf_timeout_lock,避免申请和释放不及时导致的访问异常;
+  *.超时缓冲区支持指针,如:
+    chart* ptr = sys_buf_timeout_lock(10);
+    if (sys_buf_timeout_valid(ptr)) {
+      if (!ptr->val_ptr) {
+        ptr->val_ptr = (void*)malloc(sizeof(uint16_t));
+        *(uint16_t*)ptr->val_ptr = 1024;
+        showlog(sys_buf_fill(String(*(uint16_t*)ptr->val_ptr).c_str()));
+      }
+    }
 
   *.当 Serial 作为硬件串口连接设备时,需打开 com_swap_pin,避免日志干扰通讯.
   *.当 step_run_setup 日志输出 Serial.print,step_run_loop 使用 Serial1.print.
@@ -174,18 +171,16 @@ const char* dev_pwd = NULL;
 //系统缓冲区: char-in-buffer
 #define charb sys_buffer_item
 struct sys_buffer_item {
-  byte data_type; //类型
-  uint16_t len;   //长度
-  char* data;     //数据
-
-  void* val_ptr;  //pointer
-  bool val_bool;  //bool
   bool used;      //是否使用
-
   #ifdef buf_timeout_check
   uint32_t time;  //超时计时
   #endif
-  charb* next;     //next-item
+
+  byte data_type; //类型
+  uint16_t size;  //缓冲大小
+  uint16_t len;   //数据大小
+  char* data;     //数据
+  charb* next;    //next-item
 };
 
 //全局系统缓冲区

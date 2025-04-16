@@ -85,7 +85,7 @@ charb* search_goods(const char* search) {
 
   int num = atoi(ptr->data);
   sys_buf_unlock(ptr);
-  if (num < 1) return NULL; //没有商品
+  if (num < 1 || num > 255) return NULL; //没有商品
 
   const char* init = "{\"type\": \"search\"}"; //数据类型
   charb* ret = sys_buf_lock(strlen(init) + 1, true);
