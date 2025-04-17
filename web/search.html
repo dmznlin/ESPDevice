@@ -21,7 +21,7 @@
         list-style: none;
         overflow: hidden;
         margin: 0px 0px;
-        opacity: 0.9;
+        opacity: 0.98;
       }
 
       #editContent {
@@ -47,7 +47,7 @@
         position: fixed;
         bottom: 10px;
         right: 20px;
-        background-color: rgba(1, 139, 141, 0.3);
+        background-color: rgba(1, 139, 141, 0.8);
         border: 1px solid #ccc;
         border-radius: 5px;
         padding: 10px;
@@ -117,6 +117,18 @@
       table tr:nth-child(even) {
         background: #f5fafa;
       }
+
+      .map-container {
+        background: white;
+        display: table-cell;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .map-container img {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+      }
     </style>
   </head>
   <body>
@@ -126,7 +138,7 @@
         <div class="toggle-indicator" onclick="toggleToolbar()">☞</div>
         <div class="toolbar-content">
           <label id="labelHint"></label>
-          <input type="text" id="editContent" maxlength="100" />
+          <input type="text" id="editContent" maxlength="32" />
           <input type="submit" id="send" value="查找" />
         </div>
       </div>
@@ -165,6 +177,17 @@
 
       function buildTable(data) {
         let items = JSON.parse(data);
+        if (items.type === "file") {
+          let img = document.getElementById("img_" + items.from);
+          let map = document.getElementById("row_" + items.from);
+
+          if (img && map) {
+            img.src = items.data;
+            map.style.display = "";
+          }
+          return "";
+        }
+
         if (items.type !== action) {
           return "";
         }
@@ -188,12 +211,45 @@
             "</td></tr>";
         }
 
+        let shop = items.from || "0";
         res =
           res +
           '</tbody><thead><tr><th>店址</th><td colspan="3">' +
           items.addr +
-          "</td></tr></thead></<table>";
+          '&nbsp;&nbsp;<a href="#" onclick="getMap(' +
+          shop +
+          ');return false;">导航</a></td></tr><tr id="row_' +
+          shop +
+          '" style="display: none"><td colspan="4" class="map-container"><img id="img_' +
+          shop +
+          '"></td></tr></thead></<table>';
         return res;
+      }
+
+      function getMap(shopID) {
+        let map = document.getElementById("row_" + shopID);
+        let img = document.getElementById("img_" + shopID);
+        if (!map || !img) {
+          return;
+        }
+
+        if (map.style.display === "none") {
+          map.style.display = "";
+        } else {
+          map.style.display = "none";
+        }
+
+        if (!img || img.naturalWidth > 0) {
+          return;
+        }
+
+        let sendObj = {
+          type: "file",
+          shop: shopID,
+          data: "map",
+        };
+
+        ws.send(JSON.stringify(sendObj));
       }
 
       function test() {
@@ -265,12 +321,12 @@
         };
 
         ws.send(JSON.stringify(sendObj));
-        txar.value = "";
-		cont.innerHTML = "";		
+        cont.innerHTML = "";
         send.disabled = true;
         hint.innerText = hintSearching;
-		
+
         setTimeout(function () {
+          txar.value = "";
           send.disabled = false;
           hint.innerText = hintSearch;
         }, 5000);

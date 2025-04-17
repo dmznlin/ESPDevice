@@ -206,6 +206,7 @@ byte sys_buffer_max = 120;
     void* val_ptr;    //pointer
     bool val_bool;    //bool
     int32_t val_int;  //int
+    uint32_t val_uint;  //uint
   };
 #endif
 

@@ -228,7 +228,13 @@ void decode_now(int* year, int* mon, int* day, int* hour, int* min, int* second)
 
 //文件系统-----------------------------------------------------------------------
 #ifdef lfs_enabled
-charb* file_load_text(const char* filename) {
+/*
+  date: 2025-04-17 18:01:12
+  parm: 文本文件;使用缓冲区;前缀;后缀
+  desc: 载入文本文件
+*/
+void* file_load_text(const char* filename, bool user_buf,
+  const char* prefix = NULL, const char* suffix = NULL) {
   File file = LittleFS.open(filename, "r");
   if (!file) {
     showlog("file_text_load: open file failure");
@@ -242,10 +248,42 @@ charb* file_load_text(const char* filename) {
     return NULL;
   }
 
-  charb* ret = sys_buf_lock(file_size + 1, true);
-  if (sys_buf_valid(ret)) {
-    size_t bytesRead = file.readBytes(ret->data, file_size);
-    ret->data[bytesRead] = '\0';
+  void* ret = NULL;
+  char* ptr = NULL;
+
+  size_t len_pre = 0;
+  size_t len_suf = 0;
+
+  if (prefix != NULL) len_pre = strlen(prefix);
+  if (suffix != NULL) len_suf = strlen(suffix);
+
+  if (user_buf) {
+    charb* buf = sys_buf_lock(file_size + len_pre + len_suf + 1, true);
+    if (sys_buf_valid(buf)) {
+      ptr = buf->data;
+      ret = buf;
+    }
+  } else {
+    ptr = (char*)malloc(file_size + len_pre + len_suf + 1);
+    if (ptr != NULL) ret = ptr;
+  }
+
+  if (ptr != NULL) {
+    if (len_pre > 0) {
+      strncpy(ptr, prefix, len_pre);
+      ptr += len_pre;
+    }
+
+    //load file
+    size_t bytesRead = file.readBytes(ptr, file_size);
+    ptr += bytesRead;
+
+    if (len_suf > 0) {
+      strncpy(ptr, suffix, len_suf);
+      ptr += len_suf;
+    }
+
+    *ptr = '\0';
   }
 
   file.close();

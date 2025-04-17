@@ -110,7 +110,7 @@ inline bool sys_buf_invalid(charb* item) {
   desc: 从缓冲区中锁定满足长度为len_data的项
 */
 charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data_type = 0) {
-  if (len_data < 1 || len_data > 2048) { //1-2k
+  if (len_data < 1) { //zero
     return NULL;
   }
 
@@ -257,6 +257,12 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
     #ifdef buf_timeout_check
     item->time = 0;
     #endif
+
+    if (item->size > 2048) { //2k: 超大缓冲
+      free(item->data);
+      item->data = NULL;
+      item->size = 0;
+    }
     sys_sync_leave(); //unlock
   }
 }
@@ -543,7 +549,7 @@ void showlog(const char* event[], const uint8_t size, bool ln) {
 charb* int2str(int64_t val, const char* format = NULL) {
   const char* fmt = format ? format : "%lld"; //大整数使用%lld
   int size = snprintf(NULL, 0, fmt, val);
-  if (size < 0) {
+  if (size < 1) {
     return NULL;
   }
 

@@ -6,8 +6,11 @@
 #include "esp_module.h"
 #include "esp_znlib.h"
 
+const char* action_file = "file"; //文件传输
 const char* action_chat = "chat"; //聊天
 const char* action_search = "search"; //检索
+
+const char* file_map = "/web/map.txt"; //导航信息
 const char* file_goods = "/web/goods.txt"; //商品信息文件
 
 chart* shop_goods = NULL; //商品信息列表
@@ -23,17 +26,36 @@ chart* load_goods() {
     }
 
     //load and lock
-    shop_goods = sys_buf_timeout_lock(file_load_text(file_goods));
+    shop_goods = sys_buf_timeout_lock((charb*)file_load_text(file_goods, true));
     if (sys_buf_timeout_invalid(shop_goods)) {
-        showlog("load_goods: failure.");
+      showlog("load_goods: failure.");
     }
   }
 
   return shop_goods;
 }
 
+//desc: 载入地图数据
+charb* load_map(const char* from, const char* ws_id) {
+  const char* init = "{\"type\":\"file\",\"from\":\"%s\",\"id\":\"%s\",\"data\":\"";
+  int size = snprintf(NULL, 0, init, from, ws_id);
+  if (size < 1) return NULL;
+
+  charb* pre = sys_buf_lock(size + 1, true);
+  if (sys_buf_invalid(pre)) return NULL;
+  snprintf(pre->data, size + 1, init, from, ws_id);
+
+  charb* map = (charb*)file_load_text(file_map, true, pre->data, "\"}");
+  sys_buf_unlock(pre);
+
+  if (sys_buf_invalid(map)) {
+    showlog("load_map: failure.");
+  }
+  return map;
+}
+
 //desc: 将数据写入mesh发送缓冲
-void mesh_send(chart* mesh_data, int32_t mesh_id, bool self = false) {
+void mesh_send(chart* mesh_data, uint32_t mesh_id = 0, bool self = false) {
   if (sys_buf_timeout_valid(mesh_data)) {
     if (mesh_send_buffer.isFull()) {
       chart* old_data = NULL;
@@ -41,7 +63,7 @@ void mesh_send(chart* mesh_data, int32_t mesh_id, bool self = false) {
       sys_buf_timeout_unlock(old_data);
     }
 
-    mesh_data->val_int = mesh_id;
+    mesh_data->val_uint = mesh_id;
     mesh_data->val_bool = self;
     if (!mesh_send_buffer.lockedPushOverwrite(mesh_data)) { //进入mesh发送队列
       sys_buf_timeout_unlock(mesh_data);
@@ -224,11 +246,12 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
       /*
         websocket协议:
-        1.格式: {type: chat/search/control/message, data:xxx}
-        2.类型: chat,聊天;search,检索;control,控制;message,消息
+        1.格式: {type: chat/search/control/file, data:xxx}
+        2.类型: chat,聊天;search,检索;control,控制;file,文件传输
         3.数据: 具体数据
-          *.chat:{type: chat, from: mesh_name, data: message}
-          *.search:{type: search, id: client, data: goods or shop}
+          *.chat:{type: chat, from: mesh_id, data: message}
+          *.search:{type: search, id: client, from: mesh_id, data: goods or shop}
+          *.file:{type: file, from/shop: mesh_id, id: client, data: file/filetype}
       */
 
       charb* msg_type = json_get(msg->data, "type");
@@ -242,7 +265,7 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
         server->textAll(msg->data); //发送给本服务器
 
         chart* mesh_data = sys_buf_timeout_lock(json_set(msg->data, "from", mesh_name)); //消息尾巴
-        mesh_send(mesh_data, -1); //广播至mesh
+        mesh_send(mesh_data); //广播至mesh
 
         sys_buf_unlock(msg);
         return;
@@ -250,7 +273,7 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
       //--------------------------------------------------------------------------
       if (strcmp(msg_type->data, action_search) == 0) { //信息检索
-        sys_buf_unlock(&msg_type);
+        sys_buf_unlock(msg_type);
         charb* search = json_get(msg->data, "data"); //待查找内容
 
         if (sys_buf_valid(search)) {
@@ -275,12 +298,50 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
 
             charb* ptr = json_set(msg->data, "id", int2str(client->id())); //接收方id
             chart* mesh_data = sys_buf_timeout_lock(ptr);
-            mesh_send(mesh_data, -1); //广播至mesh
+            mesh_send(mesh_data); //广播至mesh
           }
 
           sys_buf_unlock(search);
         }
 
+        sys_buf_unlock(msg);
+        return;
+      }
+
+      //--------------------------------------------------------------------------
+      if (strcmp(msg_type->data, action_file) == 0) { //文件传输
+        sys_buf_unlock(msg_type);
+
+        uint32_t mesh_id = 0;
+        charb* data = NULL;
+        charb* shop = json_get(msg->data, "shop"); //mesh id
+
+        if (sys_buf_valid(shop)) {
+          mesh_id = strtoul(shop->data, NULL, 10);
+          sys_buf_unlock(&shop);
+          data = json_get(msg->data, "data"); //data
+        }
+
+        if (sys_buf_valid(data)) {
+          if (mesh_id == 0) { //本节点
+            if (strcmp(data->data, "map") == 0) { //读取地图
+              sys_buf_unlock(&data);
+              charb* map = load_map("0", "0");
+
+              if (sys_buf_valid(map)) {
+                server->text(client->id(), map->data);
+                sys_buf_unlock(map);
+              }
+            }
+          } else { //mesh节点
+            charb* ptr = json_set(msg->data, "id", int2str(client->id())); //接收方id
+            chart* mesh_data = sys_buf_timeout_lock(ptr);
+            mesh_send(mesh_data, mesh_id); //广播至mesh
+          }
+        }
+
+        sys_buf_unlock(data);
+        sys_buf_unlock(shop);
         sys_buf_unlock(msg);
         return;
       }
@@ -302,8 +363,9 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
   1.格式: {type: chat/search/control/message, data:xxx}
   2.类型: chat,聊天;search,检索;control,控制;message,消息
   3.数据: 具体数据
-    *.chat:{type: chat, from: mesh_name, data: message}
-    *.search:{type: search, from: mesh_name, id: client, data: goods or shop}
+    *.chat:{type: chat, from: mesh_id, data: message}
+    *.search:{type: search, id: client, from: mesh_id, data: goods or shop}
+    *.file:{type: file, from/shop: mesh_id, id: client, data: file/filetype}
 */
 void mesh_do_receive(uint32_t from, TSTRING& msg) {
   charb* msg_type = json_get(msg.c_str(), "type");
@@ -340,29 +402,28 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
     charb* search = json_get(msg.c_str(), "data");  //检索数据
     if (sys_buf_invalid(search)) return;
 
+    charb* id = NULL;
+    charb* node = NULL;
     if (strstr(mesh_name, search->data) != NULL) { //包含店名
       sys_buf_unlock(search);
 
       load_goods();
-      if (sys_buf_timeout_valid(shop_goods)) {
-        charb* id = json_get(msg.c_str(), "id"); //ws.id
-        if (sys_buf_invalid(id)) return;
+      if (sys_buf_timeout_valid(shop_goods)) id = json_get(msg.c_str(), "id"); //ws.id
+      if (sys_buf_valid(id)) node = int2str(mesh.getNodeId()); //mesh.nodeId
 
-        charb* node = int2str(mesh.getNodeId());
-        if (sys_buf_invalid(node)) {
-          sys_buf_unlock(id);
-          return;
-        }
-
+      if (sys_buf_valid(node)) {
         sys_data_kv items[] = {{"from", node->data}, {"id", id->data}};
         charb* goods = json_multiset(shop_goods->buff->data, items, 2); //节点应答
-        sys_buf_unlock(id);
-        sys_buf_unlock(node);
+
+        sys_buf_unlock(&id);
+        sys_buf_unlock(&node);
 
         chart* mesh_data = sys_buf_timeout_lock(goods);
         mesh_send(mesh_data, from); //发送至mesh
       }
 
+      sys_buf_unlock(id);
+      sys_buf_unlock(node);
       return;
     }
 
@@ -370,30 +431,62 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
     charb* goods = search_goods(search->data);
     sys_buf_unlock(search);
 
-    if (sys_buf_valid(goods)) {
-      charb* id = json_get(msg.c_str(), "id"); //ws.id
-      if (sys_buf_invalid(id)) {
-        sys_buf_unlock(goods);
-        return;
-      }
+    if (sys_buf_valid(goods)) id = json_get(msg.c_str(), "id"); //ws.id
+    if (sys_buf_valid(id)) node = int2str(mesh.getNodeId()); //mesh.nodeId
 
-      charb* node = int2str(mesh.getNodeId());
-      if (sys_buf_invalid(node)) {
-        sys_buf_unlock(id);
-        sys_buf_unlock(goods);
-        return;
-      }
-
+    if (sys_buf_valid(node)) {
       sys_data_kv items[] = { {"from", node->data}, {"id", id->data} };
       ptr = json_multiset(goods->data, items, 2); //节点应答
 
-      sys_buf_unlock(id);
-      sys_buf_unlock(node);
-      sys_buf_unlock(goods);
+      sys_buf_unlock(&id);
+      sys_buf_unlock(&node);
+      sys_buf_unlock(&goods);
 
       chart* mesh_data = sys_buf_timeout_lock(ptr);
       mesh_send(mesh_data, from); //发送至mesh
     }
+
+    sys_buf_unlock(id);
+    sys_buf_unlock(node);
+    sys_buf_unlock(goods);
+    return;
+  }
+
+  //-----------------------------------------------------------------------------
+  if (strcmp(msg_type->data, action_file) == 0) { //传输文件
+    sys_buf_unlock(msg_type);
+    charb* ptr = json_get(msg.c_str(), "from");
+
+    if (sys_buf_valid(ptr)) { //mesh返回数据
+      sys_buf_unlock(ptr);
+      ptr = json_get(msg.c_str(), "id"); //ws.id
+
+      if (sys_buf_valid(ptr)) {
+        wifi_fs_server.getWebSocket()->text(atoi(ptr->data), msg.c_str()); //发给前端
+        sys_buf_unlock(ptr);
+      }
+
+      return;
+    }
+
+    charb* id = NULL;
+    charb* node = NULL;
+    charb* data = json_get(msg.c_str(), "data"); //data
+    if (sys_buf_valid(data)) id = json_get(msg.c_str(), "id"); //ws.id
+    if (sys_buf_valid(id)) node = int2str(mesh.getNodeId()); //mesh.nodeId
+
+    if (sys_buf_valid(node)) {
+      if (strcmp(data->data, "map") == 0) { //读取地图
+        sys_buf_unlock(&data);
+
+        chart* map = sys_buf_timeout_lock(load_map(node->data, id->data));
+        mesh_send(map, from); //发送至mesh
+      }
+    }
+
+    sys_buf_unlock(id);
+    sys_buf_unlock(node);
+    sys_buf_unlock(data);
     return;
   }
 
@@ -431,10 +524,10 @@ void loop() {
   chart* msg;
   while (mesh_send_buffer.lockedPop(msg)) {
     if (sys_buf_timeout_valid(msg, true)) {
-      if (msg->val_int < 0) { //广播
+      if (msg->val_uint < 1) { //广播
         mesh.sendBroadcast(msg->buff->data, msg->val_bool);
       } else {
-        mesh.sendSingle(msg->val_int, msg->buff->data);
+        mesh.sendSingle(msg->val_uint, msg->buff->data);
       }
     }
     sys_buf_timeout_unlock(msg);
