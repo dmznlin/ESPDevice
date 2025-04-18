@@ -193,6 +193,13 @@ byte sys_buffer_locked = 0;
 //全局缓冲区item个数上限
 byte sys_buffer_max = 120;
 
+/*
+  超大缓冲: 用于文件加载时用到的超大缓冲
+  当数据大小超过该值,unlock时会释放内存,
+  避免不必要的内存占用.
+*/
+uint16_t sys_buffer_huge = 2048;
+
 #ifdef buf_timeout_check
   //缓冲区item最长锁定时间
   uint32_t sys_buffer_timeout = 1000 * 60; //60s

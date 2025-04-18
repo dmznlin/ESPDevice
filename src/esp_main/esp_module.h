@@ -607,6 +607,7 @@ void mqtt_send(const char* data, bool retained = false) {
   *.格式化: /admin?pwd=xxx&do=format
   *.WiFi:   /admin?pwd=xxx&do=wifi
   *.MESH:   /admin?pwd=xxx&do=mesh
+  *.缓冲区:   /admin?pwd=xxx&do=buff
 */
 void wifi_fs_server_admin(AsyncWebServerRequest* req) {
   String val = "";
@@ -617,53 +618,63 @@ void wifi_fs_server_admin(AsyncWebServerRequest* req) {
     return;
   }
 
-  if (req->hasParam("do")) {
-    val = req->arg("do");
-    if (val.equals("editor")) { //打开在线编辑器
-      #ifdef ini_enabled
-      ini_setval("system", "dev_enable_editor", "Yes");
-      ESP.restart();
-      #else
-      req->send(500, "text/plain", "Ini is disabled.");
-      #endif
-
-      return;
-    }
-
-    if (val.equals("format")) { //格式化文件系统
-      LittleFS.format();
-      ESP.restart();
-      return;
-    }
-
-    if (val.equals("wifi")) { //重置 station 模式下的WiFi参数
-      WiFiMode_t wm = WiFi.getMode();
-      if (wm == WIFI_STA || wm == WIFI_AP_STA) {
-        wifi_isok = false;
-        delay(100);
-
-        WiFi.persistent(true);
-        WiFi.disconnect(true);
-        WiFi.persistent(false);
-
-        //restart
-        ESP.restart();
-      } else {
-        req->send(500, "text/plain", "WiFi not on WIFI_STA modal.");
-      }
-
-      return;
-    }
-
-    #ifdef mesh_enabled
-    if (val.equals("mesh")) { //获取mesh结构
-      req->send(200, "application/json", mesh.subConnectionJson(true));
-      return;
-    }
-    #endif
+  if (!req->hasParam("do")) {
+    req->send(500, "text/plain", "Invalid admin action.");
+    return;
   }
 
-  req->send(500, "text/plain", "Invalid admin action.");
+  val = req->arg("do");
+  if (val.equals("editor")) { //打开在线编辑器
+    #ifdef ini_enabled
+    ini_setval("system", "dev_enable_editor", "Yes");
+    ESP.restart();
+    #else
+    req->send(500, "text/plain", "Ini is disabled.");
+    #endif
+
+    return;
+  }
+
+  if (val.equals("format")) { //格式化文件系统
+    LittleFS.format();
+    ESP.restart();
+    return;
+  }
+
+  if (val.equals("wifi")) { //重置 station 模式下的WiFi参数
+    WiFiMode_t wm = WiFi.getMode();
+    if (wm == WIFI_STA || wm == WIFI_AP_STA) {
+      wifi_isok = false;
+      delay(100);
+
+      WiFi.persistent(true);
+      WiFi.disconnect(true);
+      WiFi.persistent(false);
+
+      //restart
+      ESP.restart();
+    } else {
+      req->send(500, "text/plain", "WiFi not on WIFI_STA modal.");
+    }
+
+    return;
+  }
+
+  #ifdef mesh_enabled
+  if (val.equals("mesh")) { //获取mesh结构
+    req->send(200, "application/json", mesh.subConnectionJson(true));
+    return;
+  }
+  #endif
+
+  if (val.equals("buff")) { //获取缓冲区状态
+    charb* ptr = sys_buf_status();
+    if (sys_buf_valid(ptr)) {
+      req->send(200, "application/json", ptr->data);
+      sys_buf_unlock(ptr);
+    }
+    return;
+  }
 }
 
 #ifdef ESP32

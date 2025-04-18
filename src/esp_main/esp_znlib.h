@@ -120,8 +120,9 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
 
   if (!sys_sync_enter()) return NULL;
   //sync-lock
-
+  uint8_t num_huge = 0; //超大缓冲计数
   charb* tmp = sys_data_buffer;
+
   while (tmp != NULL)
   {
     #ifdef buf_timeout_check
@@ -138,13 +139,25 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
       continue;
     }
 
-    if (tmp->size >= len_data) { //长度满足
+    //避免超大缓冲过多,计数到3强制使用
+    if (tmp->size < 1) num_huge++;
+
+    if ((tmp->size >= len_data && tmp->size <= len_data * 3) || (tmp->size < 1 &&
+        (num_huge > 3 || len_data > sys_buffer_huge))) { //长度满足,或自动分配的超大缓冲
       item = tmp;
       break;
     }
 
-    if (item_first == NULL || item_first->size < tmp->size) { //首个可用项,或长度优先
+    if (item_first == NULL) { //首个可用项
       item_first = tmp;
+    } else {
+      if (item_first->size > len_data) {
+        if (tmp->size > len_data && tmp->size < item_first->size) { //长度满足时,小长度优先
+          item_first = tmp;
+        }
+      } else if (item_first->size < tmp->size) { //长度不足时,大长度优先
+        item_first = tmp;
+      }
     }
 
     //next item
@@ -155,14 +168,13 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
     if (sys_buffer_size == 0) { //缓冲区为空
       sys_data_buffer = sys_buf_new();
       item = sys_data_buffer;
+    } else if (item_first != NULL && item_first->size > len_data) { //可选项长度足够
+      item = item_first;
     } else if (sys_buffer_size < sys_buffer_max) { //缓冲区未满
       item = sys_buf_new();
       item_last->next = item;
-    } else if (item_first != NULL) { //有可选项
+    } else if (item_first != NULL) { //可选项长度不够,扩空间
       item = item_first;
-      #ifdef debug_enabled
-      showlog("sys_buf_lock: re-used,size " + String(sys_buffer_size));
-      #endif
     }
   }
 
@@ -258,7 +270,7 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
     item->time = 0;
     #endif
 
-    if (item->size > 2048) { //2k: 超大缓冲
+    if (item->size > sys_buffer_huge) { //超大缓冲: 用完释放
       free(item->data);
       item->data = NULL;
       item->size = 0;
