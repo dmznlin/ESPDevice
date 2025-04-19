@@ -589,12 +589,208 @@ void mqtt_send(const char* data, bool retained = false) {
     return;
   }
 
-  item->val_bool = retained;
+  item->val_int = retained ? 1 : 0;
   strcpy(item->data, data);
   if (!mqtt_send_buffer.lockedPushOverwrite(item)) {
     sys_buf_unlock(item);
   }
 }
+#endif
+
+//MESH---------------------------------------------------------------------------
+#ifdef mesh_enabled
+/*
+  date: 2025-04-19 14:23:20
+  parm: 数据;接收方;发给自己
+  desc: 将数据写入mesh发送缓冲
+*/
+void mesh_send(chart* mesh_data, uint32_t mesh_id = 0, bool self = false) {
+  if (sys_buf_timeout_valid(mesh_data)) {
+    if (mesh_send_buffer.isFull()) {
+      chart* old_data = NULL;
+      mesh_send_buffer.lockedPop(old_data);
+      sys_buf_timeout_unlock(old_data);
+    }
+
+    mesh_data->val_uint = mesh_id;
+    mesh_data->val_bool = self;
+    if (!mesh_send_buffer.lockedPushOverwrite(mesh_data)) { //进入mesh发送队列
+      sys_buf_timeout_unlock(mesh_data);
+    }
+  }
+}
+
+/*
+  date: 2025-04-19 14:27:20
+  parm: 数据;接收方;分组序列
+  desc: 将 msg 分包发送至标识为 peer_id 的对端
+*/
+void mesh_send_peer(const charb* msg, uint32_t peer_id, byte serial) {
+  if (msg->len / sys_buffer_huge > 10) { //分包过多,直接抛弃
+    showlog("mesh_send_peer: data too huge");
+    return;
+  }
+
+  charb* buf = sys_buf_lock(sys_buffer_huge + 1, true);
+  if (sys_buf_invalid(buf)) return;
+
+  const char* pack = "id=%d;idx=%d "; //以空格结尾
+  char* ptr = msg->data;
+  uint16_t len = msg->len;
+  byte pack_idx = 1;
+
+  while (len > 0) {
+    int size = snprintf(NULL, 0, pack, serial, pack_idx);
+    if (size < 1) return; //invalid
+
+    charb* pre = sys_buf_lock(size + 1, true);
+    if (sys_buf_invalid(buf)) {
+      showlog("mesh_send_peer: malloc prefix failure.");
+      return;
+    }
+
+    size = sys_buffer_huge - size; //最大有效数据
+    if (len <= size) {
+      size = len;
+      snprintf(pre->data, pre->len, pack, serial, 0); //尾包
+    }
+    else {
+      snprintf(pre->data, pre->len, pack, serial, pack_idx++);
+    }
+
+    strncpy(buf->data, pre->data, pre->len - 1); //复制前缀
+    strncpy(buf->data + pre->len - 1, ptr, size); //复制数据
+    buf->data[pre->len - 1 + size] = '\0';
+
+    ptr += size; //下一包起始位置
+    len -= size; //剩余待处理数据
+
+    sys_buf_unlock(pre);
+    mesh.sendSingle(peer_id, buf->data);
+  }
+
+  sys_buf_unlock(buf);
+}
+
+/*
+  date: 2025-04-19 18:51:20
+  parm: 接收方;分组序列
+  desc: 释放来自 peer_id 的分包数据
+*/
+void mesh_recv_unlock(uint32_t peer_id, byte serial) {
+  chart* mesh;
+  for (int i = 0; i < mesh_data_buffer_size; i++) {
+    mesh = mesh_recv_buffer[i];
+    if (mesh != NULL && mesh->val_uint == peer_id && mesh->val_int == serial) {
+      mesh_recv_buffer[i] = NULL;
+      sys_buf_timeout_unlock(mesh);
+    }
+  }
+}
+
+/*
+  date: 2025-04-19 15:22:20
+  parm: 数据;接收方;分组序列;包索引
+  desc: 接收来自 peer_id 的分包数据,序列为serial.idx
+*/
+charb* mesh_recv_peer(const char* msg, uint32_t peer_id, byte serial, byte idx) {
+  if (msg == NULL || *msg == '\0') { //invalid
+    return NULL;
+  }
+
+  chart* mesh = NULL;
+  size_t len = strlen(msg);
+
+  if (idx > 0) { //非尾包
+    for (int i = 0; i < mesh_data_buffer_size; i++) {
+      mesh = mesh_recv_buffer[i];
+      if (mesh != NULL && sys_buf_timeout_invalid(mesh)) { //已超时
+        mesh_recv_buffer[i] = NULL;
+        sys_buf_timeout_unlock(mesh);
+      }
+
+      if (mesh_recv_buffer[i] == NULL) {
+        //申请超大内存,用后即释放
+        mesh = sys_buf_timeout_lock(sys_buffer_huge + 1);
+
+        if (sys_buf_timeout_valid(mesh)) {
+          mesh_recv_buffer[i] = mesh;
+          mesh->val_uint = peer_id;
+          mesh->val_int = serial;
+          mesh->buff->val_uint = idx;
+
+          strncpy(mesh->buff->data, msg, len);
+          mesh->buff->data[len] = '\0';
+        }
+
+        break;
+      }
+    }
+
+    return NULL;
+  }
+
+  //组装分包-------------------------------------------------
+  byte id_max = 0;
+  for (int i = 0; i < mesh_data_buffer_size; i++) { //计算分包最大序列号
+    mesh = mesh_recv_buffer[i];
+    if (mesh == NULL) continue;
+
+    if (sys_buf_timeout_invalid(mesh)) { //已超时
+      mesh_recv_buffer[i] = NULL;
+      sys_buf_timeout_unlock(mesh);
+    }
+
+    if (mesh->val_uint == peer_id && mesh->val_int == serial &&
+      mesh->buff->val_uint > id_max) {
+      id_max = mesh->buff->val_uint;
+    }
+  }
+
+  for (byte id = 1; id <= id_max; id++) { //包序列号: 1 - id_max,验证完整性
+    bool find = false;
+    for (int i = 0; i < mesh_data_buffer_size; i++) {
+      mesh = mesh_recv_buffer[i];
+      if (mesh != NULL && mesh->val_uint == peer_id &&
+        mesh->val_int == serial && mesh->buff->val_uint == id) {
+        len += strlen(mesh->buff->data); //计算总长度
+        find = true;
+        break;
+      }
+    }
+
+    if (!find) {//有丢包,全部作废
+      mesh_recv_unlock(peer_id, serial);
+      return NULL;
+    }
+  }
+
+  charb* ret = sys_buf_lock(len + 1, true);
+  if (sys_buf_invalid(ret)) { //无法重构,全部作废
+    mesh_recv_unlock(peer_id, serial);
+    return NULL;
+  }
+
+  char* ptr = ret->data;
+  for (byte id = 1; id <= id_max; id++) { //按包顺序组装
+    for (int i = 0; i < mesh_data_buffer_size; i++) {
+      mesh = mesh_recv_buffer[i];
+      if (mesh != NULL && mesh->val_uint == peer_id &&
+        mesh->val_int == serial && mesh->buff->val_uint == id) {
+        size_t data_len = strlen(mesh->buff->data);
+        strncpy(ptr, mesh->buff->data, data_len);
+        ptr += data_len;
+        break;
+      }
+    }
+  }
+
+  mesh_recv_unlock(peer_id, serial); //释放分包
+  strncpy(ptr, msg, strlen(msg)); //尾包
+  ret->data[len] = '\0';
+  return ret;
+}
+
 #endif
 
 //配置WiFi-----------------------------------------------------------------------
@@ -1125,6 +1321,10 @@ bool do_setup_begin() {
         str2char(str_dev, mesh_name, false);
       }
     }
+
+    for (int i = 0; i < mesh_data_buffer_size; i++) { //缓冲初始化
+      mesh_recv_buffer[i] == NULL;
+    }
   #endif
 
   return true;
@@ -1227,7 +1427,7 @@ void do_loop_end() {
     charb* item;
 
     while (mqtt_send_buffer.lockedPop(item)) {
-      mqtt_client.publish(mqtt_topic_log, item->data, item->val_bool);
+      mqtt_client.publish(mqtt_topic_log, item->data, item->val_int == 1);
       sys_buf_unlock(item);
     }
   }

@@ -11,6 +11,9 @@ void showlog(const char* event, bool ln = true);
 void showlog(const String &event, bool ln = true);
 void showlog(const char* event[], const uint8_t size, bool ln = true);
 
+//declare front
+void sys_buf_unlock(charb* item, bool reset_type = false, bool lock = true);
+
 /*
   date: 2025-02-21 18:32:02
   parm: 精确值
@@ -78,6 +81,8 @@ charb* sys_buf_new() {
   item->next = NULL;
   item->used = false;
 
+  item->val_int = 0;
+  item->val_uint = 0;
   #ifdef buf_timeout_check
   item->time = 0;
   #endif
@@ -125,25 +130,26 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
 
   while (tmp != NULL)
   {
+    item_last = tmp;
     #ifdef buf_timeout_check
     if (tmp->time != 0 && GetTickcountDiff(tmp->time) > sys_buffer_timeout) { //超时
-      tmp->time = 0;
-      tmp->used = false;
-      sys_buffer_locked--;
+      sys_buf_unlock(tmp, false, false);
     }
     #endif
 
-    item_last = tmp;
+    if (tmp->size > sys_buffer_huge) { //超大缓冲计数
+      num_huge++;
+    }
+
     if (tmp->used || tmp->data_type != data_type) { //使用中,类型不匹配
       tmp = tmp->next;
       continue;
     }
 
-    //避免超大缓冲过多,计数到3强制使用
-    if (tmp->size < 1) num_huge++;
+    if (tmp->size < 1) num_huge++; //超大缓冲计数
 
     if ((tmp->size >= len_data && tmp->size <= len_data * 3) || (tmp->size < 1 &&
-        (num_huge > 3 || len_data > sys_buffer_huge))) { //长度满足,或自动分配的超大缓冲
+        (num_huge > 10 || len_data > sys_buffer_huge))) { //长度满足,或自动分配的超大缓冲
       item = tmp;
       break;
     }
@@ -169,6 +175,8 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
       sys_data_buffer = sys_buf_new();
       item = sys_data_buffer;
     } else if (item_first != NULL && item_first->size > len_data) { //可选项长度足够
+      item = item_first;
+    } else if (len_data > sys_buffer_huge && num_huge > 10 && item_first != NULL){
       item = item_first;
     } else if (sys_buffer_size < sys_buffer_max) { //缓冲区未满
       item = sys_buf_new();
@@ -256,12 +264,12 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
 
 /*
   date: 2025-02-24 22:14:02
-  parm: 数据;重置类型
+  parm: 数据;重置类型;同步锁
   desc: 释放数据使其可用
 */
-void sys_buf_unlock(charb* item, bool reset_type = false) {
+void sys_buf_unlock(charb* item, bool reset_type, bool lock) {
   if (item != NULL) {
-    sys_sync_enter();//sync-lock
+    if (lock) sys_sync_enter();//sync-lock
     item->used = false;
     if (reset_type) item->data_type = 0;
     sys_buffer_locked--;
@@ -275,7 +283,7 @@ void sys_buf_unlock(charb* item, bool reset_type = false) {
       item->data = NULL;
       item->size = 0;
     }
-    sys_sync_leave(); //unlock
+    if (lock) sys_sync_leave(); //unlock
   }
 }
 
@@ -425,10 +433,12 @@ inline bool sys_buf_timeout_invalid(chart* item) {
 */
 void sys_buf_timeout_unlock(chart* item) {
   if (item != NULL) {
+    sys_sync_enter(); //lock first
     if (item->time == item->buff->time) {
-      sys_buf_unlock(item->buff);
+      sys_buf_unlock(item->buff, false, false);
     }
 
+    sys_sync_leave();
     free(item);
   }
 }
@@ -600,6 +610,53 @@ String split_val(const String& str, const String& keyname, const char* defval = 
 }
 
 /*
+  date: 2025-04-19 15:36:20
+  parm: 键值对;键名;默认值;分隔符
+  desc: 从data中提取key的值
+
+  格式: key=value;key=value
+*/
+charb* get_kv_val(const char* data, const char* key, const char* def = NULL, const char tag = ';') {
+  if (data == NULL || key == NULL) {
+    return sys_buf_fill(def);
+  }
+
+  uint8_t len = strlen(key);
+  const char* start = NULL;
+  const char* end = NULL;
+
+  while (*data != '\0') {
+    end = strchr(data, '=');
+    if (end == NULL) break; // Invalid format
+    start = data;
+
+    if ((end - start) == len && strncmp(key, start, len) == 0) { // Key matches, find the value
+      start = end + 1;
+      while (*start == ' ') start++; // Skip spaces
+
+      end = start;
+      while (*end != '\0' && *end != tag) end++;
+
+      charb* ret = sys_buf_lock(end - start + 1, true);
+      if (sys_buf_valid(ret)) {
+        strncpy(ret->data, start, end - start);
+        ret->data[end - start] = '\0';
+        return ret;
+      }
+
+      break;
+    }
+
+    // Move to the next key-value pair
+    data = strchr(end, tag);
+    if (data == NULL) break;
+    data++;
+  }
+
+  return sys_buf_fill(def);
+}
+
+/*
   date: 2025-02-20 21:13:10
   parm: 字符串;目标指针;检查目标
   desc: 将字符串转换为常量字符串
@@ -672,24 +729,24 @@ charb* json_get(const char* data, const char* key) {
 
   while (*data != '\0') {
     // Find the key
-    ptr = strstr(data, "\"");
+    ptr = strchr(data, '"');
     if (ptr == NULL) break; // Invalid format
     start = ptr + 1;
 
-    ptr = strstr(start, "\"");
+    ptr = strchr(start, '"');
     if (ptr == NULL) break; // Invalid format
     end = ptr;
 
     if ((end - start) == len && strncmp(key, start, len) == 0) {
       // Key matches, find the value
-      ptr = strstr(end, ":");
+      ptr = strchr(end, ':');
       if (ptr == NULL) break; // Invalid format
 
       start = ptr + 1;
-      while (*start == ' ' || *start == '\"') start++; // Skip spaces and quotes
+      while (*start == ' ' || *start == '"') start++; // Skip spaces and quotes
 
       end = start;
-      while (*end != '\0' && *end != ',' && *end != '}' && *end != '\"') end++;
+      while (*end != '\0' && *end != ',' && *end != '}' && *end != '"') end++;
 
       size_t value_len = end - start;
       ret = sys_buf_lock(value_len + 1, true);
@@ -701,7 +758,7 @@ charb* json_get(const char* data, const char* key) {
     }
 
     // Move to the next key-value pair
-    data = strstr(end, ",");
+    data = strchr(end, ',');
     if (data == NULL) break;
     data++;
   }
@@ -737,24 +794,24 @@ charb* json_set(const char* data, const char* key, const char* val) {
 
   while (*data != '\0') {
     // Find the key
-    ptr = strstr(data, "\"");
+    ptr = strchr(data, '"');
     if (ptr == NULL) break; // Invalid format
     start = ptr + 1;
 
-    ptr = strstr(start, "\"");
+    ptr = strchr(start, '"');
     if (ptr == NULL) break; // Invalid format
     end = ptr;
 
     if ((end - start) == len && strncmp(key, start, len) == 0) {
       // Key matches, find the value
-      ptr = strstr(end, ":");
+      ptr = strchr(end, ':');
       if (ptr == NULL) break; // Invalid format
 
       start = ptr + 1;
-      while (*start == ' ' || *start == '\"') start++; // Skip spaces and quotes
+      while (*start == ' ' || *start == '"') start++; // Skip spaces and quotes
 
       end = start;
-      while (*end != '\0' && *end != ',' && *end != '}' && *end != '\"') end++;
+      while (*end != '\0' && *end != ',' && *end != '}' && *end != '"') end++;
 
       //new len: 原总长 - 原值长 + 新值长
       size_t all_len = strlen(ptr_data) - (end - start) + strlen(val);
@@ -770,13 +827,13 @@ charb* json_set(const char* data, const char* key, const char* val) {
     }
 
     // Move to the next key-value pair
-    data = strstr(end, ",");
+    data = strchr(end, ',');
     if (data == NULL) break;
     data++;
   }
 
   // If the key was not found, create a new key-value pair
-  end = strstr(ptr_data, "}");
+  end = strchr(ptr_data, '}');
   if (end == NULL) return NULL; // Invalid format
 
   //新增7: ,"":_"" | 不包括右大括号

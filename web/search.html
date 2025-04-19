@@ -124,8 +124,10 @@
         text-align: center;
         vertical-align: middle;
       }
+
       .map-container img {
-        width: 100%;
+        width: auto;
+        max-width: 100%;
         height: auto;
         object-fit: contain;
       }
@@ -212,18 +214,15 @@
         }
 
         let shop = items.from || "0";
-        res =
-          res +
-          '</tbody><thead><tr><th>店址</th><td colspan="3">' +
-          items.addr +
-          '&nbsp;&nbsp;<a href="#" onclick="getMap(' +
-          shop +
-          ');return false;">导航</a></td></tr><tr id="row_' +
-          shop +
-          '" style="display: none"><td colspan="4" class="map-container"><img id="img_' +
-          shop +
-          '"></td></tr></thead></<table>';
-        return res;
+        let foot =
+          '</tbody><thead><tr><th>店址</th><td colspan="3">{addr}&nbsp;&nbsp;' +
+          '<a id="btn_{shop}" href="#" onclick="getMap({shop});return false;">导航</a></td></tr>' +
+          '<tr id="row_{shop}" style="display: none"><td colspan="4" class="map-container">' +
+          '<img id="img_{shop}"></td></tr></thead></<table>';
+
+        return (
+          res + foot.replace("{addr}", items.addr).replaceAll("{shop}", shop)
+        );
       }
 
       function getMap(shopID) {
@@ -239,9 +238,19 @@
           map.style.display = "none";
         }
 
-        if (!img || img.naturalWidth > 0) {
+        if (img.naturalWidth > 0) {
           return;
         }
+
+        let btn = document.getElementById("btn_" + shopID);
+        if (!btn) {
+          return;
+        }
+
+        btn.style.visibility = "hidden";
+        setTimeout(function () {
+          btn.style.visibility = "visible";
+        }, 5000);
 
         let sendObj = {
           type: "file",

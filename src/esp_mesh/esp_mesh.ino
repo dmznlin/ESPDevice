@@ -15,6 +15,8 @@ const char* file_goods = "/web/goods.txt"; //商品信息文件
 
 chart* shop_goods = NULL; //商品信息列表
 
+byte mesh_data_pack_serial = 0; //数据分包序列号
+
 //-------------------------------------------------------------------------------
 #ifdef mesh_enabled
 
@@ -52,23 +54,6 @@ charb* load_map(const char* from, const char* ws_id) {
     showlog("load_map: failure.");
   }
   return map;
-}
-
-//desc: 将数据写入mesh发送缓冲
-void mesh_send(chart* mesh_data, uint32_t mesh_id = 0, bool self = false) {
-  if (sys_buf_timeout_valid(mesh_data)) {
-    if (mesh_send_buffer.isFull()) {
-      chart* old_data = NULL;
-      mesh_send_buffer.lockedPop(old_data);
-      sys_buf_timeout_unlock(old_data);
-    }
-
-    mesh_data->val_uint = mesh_id;
-    mesh_data->val_bool = self;
-    if (!mesh_send_buffer.lockedPushOverwrite(mesh_data)) { //进入mesh发送队列
-      sys_buf_timeout_unlock(mesh_data);
-    }
-  }
 }
 
 /*
@@ -368,10 +353,49 @@ void wifi_doWebsocket(AsyncWebSocket* server, AsyncWebSocketClient* client,
     *.file:{type: file, from/shop: mesh_id, id: client, data: file/filetype}
 */
 void mesh_do_receive(uint32_t from, TSTRING& msg) {
-  charb* msg_type = json_get(msg.c_str(), "type");
-  if (sys_buf_invalid(msg_type)) { //无效消息类型
+  charb* msg_type = sys_buf_lock(15, true);
+  if (sys_buf_invalid(msg_type)) return;
+
+  strncpy(msg_type->data, msg.c_str(), 15);
+  msg_type->data[15] = '\0';
+
+  //-----------------------------------------------------------------------------
+  if (strstr(msg_type->data, "id=") != NULL) { //mesh分包数据: id=1;idx=2
+    charb* id = NULL;
+    charb* idx = NULL;
+    char* tag = strchr(msg_type->data, ' '); //定位空格
+
+    if (tag != NULL) id = get_kv_val(msg_type->data, "id");
+    if (sys_buf_valid(id)) idx = get_kv_val(msg_type->data, "idx");
+
+    if (sys_buf_valid(idx)) {
+      charb* full = mesh_recv_peer(msg.c_str() + (tag - msg_type->data) + 1,
+        from, atoi(id->data), atoi(idx->data));
+      //缓存 或 组装
+
+      sys_buf_unlock(&id);
+      sys_buf_unlock(&idx);
+      sys_buf_unlock(&msg_type);
+
+      if (sys_buf_valid(full)) {
+        id = json_get(full->data, "id"); //ws.id
+        if (sys_buf_valid(id)) {
+          wifi_fs_server.getWebSocket()->text(atoi(id->data), full->data);
+        }
+        sys_buf_unlock(full);
+      }
+    }
+
+    sys_buf_unlock(id);
+    sys_buf_unlock(idx);
+    sys_buf_unlock(msg_type);
     return;
   }
+
+  //-----------------------------------------------------------------------------
+  sys_buf_unlock(msg_type);
+  msg_type = json_get(msg.c_str(), "type");
+  if (sys_buf_invalid(msg_type)) return; //无效消息类型
 
   if (strcmp(msg_type->data, action_chat) == 0) { //聊天室数据
     sys_buf_unlock(msg_type);
@@ -525,9 +549,19 @@ void loop() {
   while (mesh_send_buffer.lockedPop(msg)) {
     if (sys_buf_timeout_valid(msg, true)) {
       if (msg->val_uint < 1) { //广播
-        mesh.sendBroadcast(msg->buff->data, msg->val_bool);
+        if (msg->buff->len <= sys_buffer_huge) {
+          mesh.sendBroadcast(msg->buff->data, msg->val_bool);
+        } else {
+          showlog("mesh.sendBroadcast: data too huge");
+        }
       } else {
-        mesh.sendSingle(msg->val_uint, msg->buff->data);
+        if (msg->buff->len <= sys_buffer_huge) {
+          mesh.sendSingle(msg->val_uint, msg->buff->data);
+        } else {
+          mesh_data_pack_serial++;
+          if (mesh_data_pack_serial < 1) mesh_data_pack_serial = 1;
+          mesh_send_peer(msg->buff, msg->val_uint, mesh_data_pack_serial);
+        }
       }
     }
     sys_buf_timeout_unlock(msg);

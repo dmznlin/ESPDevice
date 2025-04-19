@@ -172,6 +172,9 @@ const char* dev_pwd = NULL;
 #define charb sys_buffer_item
 struct sys_buffer_item {
   bool used;      //是否使用
+  int8_t val_int; //int
+  uint8_t val_uint;//uint
+
   #ifdef buf_timeout_check
   uint32_t time;  //超时计时
   #endif
@@ -334,6 +337,8 @@ struct sys_data_kv {
   //发送缓冲
   const byte mesh_data_buffer_size = 20;
   RingBuf<chart*, mesh_data_buffer_size> mesh_send_buffer;
+  //接收缓冲
+  chart* mesh_recv_buffer[mesh_data_buffer_size];
 
   //回调事件
   painlessmesh::receivedCallback_t mesh_on_receive = nullptr;
