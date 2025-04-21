@@ -653,8 +653,7 @@ void mesh_send_peer(const charb* msg, uint32_t peer_id, byte serial) {
     if (len <= size) {
       size = len;
       snprintf(pre->data, pre->len, pack, serial, 0); //尾包
-    }
-    else {
+    } else {
       snprintf(pre->data, pre->len, pack, serial, pack_idx++);
     }
 
@@ -704,14 +703,14 @@ charb* mesh_recv_peer(const char* msg, uint32_t peer_id, byte serial, byte idx) 
   if (idx > 0) { //非尾包
     for (int i = 0; i < mesh_data_buffer_size; i++) {
       mesh = mesh_recv_buffer[i];
-      if (mesh != NULL && sys_buf_timeout_invalid(mesh)) { //已超时
+      if (mesh != NULL && sys_buf_timeout_invalid(mesh, true)) { //已超时
         mesh_recv_buffer[i] = NULL;
         sys_buf_timeout_unlock(mesh);
       }
 
       if (mesh_recv_buffer[i] == NULL) {
         //申请超大内存,用后即释放
-        mesh = sys_buf_timeout_lock(sys_buffer_huge + 1);
+        mesh = sys_buf_timeout_lock(sys_buffer_huge + 1, sys_buffer_huge_timeout);
 
         if (sys_buf_timeout_valid(mesh)) {
           mesh_recv_buffer[i] = mesh;
@@ -754,6 +753,7 @@ charb* mesh_recv_peer(const char* msg, uint32_t peer_id, byte serial, byte idx) 
       if (mesh != NULL && mesh->val_uint == peer_id &&
         mesh->val_int == serial && mesh->buff->val_uint == id) {
         len += strlen(mesh->buff->data); //计算总长度
+
         find = true;
         break;
       }
@@ -779,6 +779,7 @@ charb* mesh_recv_peer(const char* msg, uint32_t peer_id, byte serial, byte idx) 
         mesh->val_int == serial && mesh->buff->val_uint == id) {
         size_t data_len = strlen(mesh->buff->data);
         strncpy(ptr, mesh->buff->data, data_len);
+
         ptr += data_len;
         break;
       }

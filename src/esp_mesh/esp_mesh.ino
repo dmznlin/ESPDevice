@@ -442,7 +442,7 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
         sys_buf_unlock(&id);
         sys_buf_unlock(&node);
 
-        chart* mesh_data = sys_buf_timeout_lock(goods);
+        chart* mesh_data = sys_buf_timeout_lock(goods, sys_buffer_huge_timeout);
         mesh_send(mesh_data, from); //发送至mesh
       }
 
@@ -466,7 +466,7 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
       sys_buf_unlock(&node);
       sys_buf_unlock(&goods);
 
-      chart* mesh_data = sys_buf_timeout_lock(ptr);
+      chart* mesh_data = sys_buf_timeout_lock(ptr, sys_buffer_huge_timeout);
       mesh_send(mesh_data, from); //发送至mesh
     }
 
@@ -503,7 +503,7 @@ void mesh_do_receive(uint32_t from, TSTRING& msg) {
       if (strcmp(data->data, "map") == 0) { //读取地图
         sys_buf_unlock(&data);
 
-        chart* map = sys_buf_timeout_lock(load_map(node->data, id->data));
+        chart* map = sys_buf_timeout_lock(load_map(node->data, id->data), sys_buffer_huge_timeout);
         mesh_send(map, from); //发送至mesh
       }
     }

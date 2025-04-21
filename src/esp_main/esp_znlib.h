@@ -137,7 +137,7 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
     }
     #endif
 
-    if (tmp->size > sys_buffer_huge) { //超大缓冲计数
+    if (tmp->size < 1 || tmp->size > sys_buffer_huge) { //超大缓冲计数
       num_huge++;
     }
 
@@ -145,8 +145,6 @@ charb* sys_buf_lock(const uint16_t len_data, bool auto_unlock = false, byte data
       tmp = tmp->next;
       continue;
     }
-
-    if (tmp->size < 1) num_huge++; //超大缓冲计数
 
     if ((tmp->size >= len_data && tmp->size <= len_data * 3) || (tmp->size < 1 &&
         (num_huge > 10 || len_data > sys_buffer_huge))) { //长度满足,或自动分配的超大缓冲
@@ -378,10 +376,10 @@ charb* sys_buf_status() {
 #ifdef buf_timeout_check
 /*
   date: 2025-04-10 16:24:20
-  parm: 数据长度
+  parm: 数据长度;超时(ms)
   desc: 从缓冲区中锁定满足长度为len_data的项,带超时保护
 */
-chart* sys_buf_timeout_lock(uint16_t len_data) {
+chart* sys_buf_timeout_lock(uint16_t len_data, uint32_t timeout = 0) {
   chart* ret = NULL;
   charb* item = sys_buf_lock(len_data, true);
 
@@ -389,6 +387,10 @@ chart* sys_buf_timeout_lock(uint16_t len_data) {
     //malloc and reset
     ret = (chart*)calloc(1, sizeof(chart));
     if (ret != NULL) {
+      if (timeout > 0) {
+        item->time = GetTickcountDiff(sys_buffer_timeout) + timeout;
+      }
+
       ret->buff = item;
       ret->time = item->time;
     } else {
@@ -419,11 +421,13 @@ inline bool sys_buf_timeout_valid(chart* item, bool delay = false) {
 
 /*
   date: 2025-04-10 16:32:20
-  parm: 数据项
+  parm: 数据项;验证是否超时
   desc: 验证data是否无效(true,无效)
 */
-inline bool sys_buf_timeout_invalid(chart* item) {
-  return item == NULL || item->time != item->buff->time;
+inline bool sys_buf_timeout_invalid(chart* item, bool verify = false) {
+  bool ret = item == NULL || item->time != item->buff->time;
+  if (ret && verify) ret = GetTickcountDiff(item->time) > sys_buffer_timeout;
+  return ret;
 }
 
 /*
@@ -457,16 +461,16 @@ void sys_buf_timeout_unlock(chart** item) {
 
 /*
   date: 2025-04-12 10:44:20
-  parm: 缓冲数据;复制数据
+  parm: 缓冲数据;超时(ms);复制数据
   desc: 基于item创建带超时保护的数据
 */
-chart* sys_buf_timeout_lock(charb* item, bool copy = false) {
+chart* sys_buf_timeout_lock(charb* item, uint32_t timeout = 0, bool copy = false) {
   if (sys_buf_invalid(item)) {
     return NULL;
   }
 
   if (copy) {
-    chart* ret = sys_buf_timeout_lock(item->len);
+    chart* ret = sys_buf_timeout_lock(item->len, timeout);
     if (sys_buf_timeout_valid(ret)) {
       memcpy(ret->buff->data, item->data, item->len);
     }
@@ -477,7 +481,9 @@ chart* sys_buf_timeout_lock(charb* item, bool copy = false) {
   //malloc and reset
   chart* ret = (chart*)calloc(1, sizeof(chart));
   if (ret != NULL) {
-    if (item->time == 0) {
+    if (timeout > 0) {
+      item->time = GetTickcountDiff(sys_buffer_timeout) + timeout;
+    } else if (item->time == 0) {
       item->time = GetTickCount();
     }
 

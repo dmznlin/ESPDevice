@@ -207,6 +207,9 @@ uint16_t sys_buffer_huge = 2048;
   //缓冲区item最长锁定时间
   uint32_t sys_buffer_timeout = 1000 * 60; //60s
 
+  //超大缓冲超时
+  uint16_t sys_buffer_huge_timeout = 10 * 1000; //10s
+
   //带超时保护的缓冲区item
   #define chart sys_buffer_timeout_item
   struct sys_buffer_timeout_item {
