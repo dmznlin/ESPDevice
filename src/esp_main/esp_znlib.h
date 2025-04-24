@@ -574,6 +574,34 @@ void showlog(const char* event[], const uint8_t size, bool ln) {
 }
 
 // 字符串------------------------------------------------------------------------
+/*
+  date: 2025-04-21 20:41:20
+  parm: 字符串;左 右空格
+  desc: 从str中提取keyname的值
+*/
+void str_trim(char* str, bool left = true, bool right = true) {
+  if (str == NULL || *str == '\0') {
+    return;
+  }
+
+  if (right) { //right space
+    int len = strlen(str);
+    char* p = str + len - 1;
+    while (p >= str && isspace(*p)) {
+      *p = '\0';
+      --p;
+    }
+  }
+
+  if (left) { //left sapce
+    char* p = str;
+    while (*p != '\0' && isspace(*p)) {
+     ++p;
+    }
+    memmove(str, p, strlen(str) - (p - str) + 1);
+  }
+}
+
 charb* int2str(int64_t val, const char* format = NULL) {
   const char* fmt = format ? format : "%lld"; //大整数使用%lld
   int size = snprintf(NULL, 0, fmt, val);

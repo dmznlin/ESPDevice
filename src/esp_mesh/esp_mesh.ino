@@ -10,6 +10,8 @@ const char* action_file = "file"; //文件传输
 const char* action_chat = "chat"; //聊天
 const char* action_search = "search"; //检索
 
+const char* shop_all = "\xE9\x99\x84\xE8\xBF\x91"; //附近: 查询门店列表
+
 const char* file_map = "/web/map.txt"; //导航信息
 const char* file_goods = "/web/goods.txt"; //商品信息文件
 
@@ -106,56 +108,58 @@ charb* search_goods(const char* search) {
   char good_name[5];
   uint8_t good_idx = 0;
 
-  for (uint8_t i = 1;i <= num;i++) {
-    good_item[0] = 'b';
-    snprintf(&good_item[1], 4, "%d", i);
+  if (strcmp(search, shop_all) != 0) { //正常检索商品
+    for (uint8_t i = 1;i <= num;i++) {
+      good_item[0] = 'b';
+      snprintf(&good_item[1], 4, "%d", i);
 
-    ptr = json_get(shop_goods->buff->data, good_item); //商品名
-    if (sys_buf_invalid(ptr)) continue;
+      ptr = json_get(shop_goods->buff->data, good_item); //商品名
+      if (sys_buf_invalid(ptr)) continue;
 
-    if (strstr(ptr->data, search) == NULL) { //匹配
-      sys_buf_unlock(ptr);
-      continue;
-    }
-
-    good_idx++;
-    good_name[0] = 'b';
-    snprintf(&good_name[1], 4, "%d", good_idx);
-
-    tmp = json_set(ret->data, good_name, ptr->data); //b1
-    sys_buf_unlock(ptr);
-    if (sys_buf_valid(tmp)) {
-      sys_buf_unlock(ret);
-      ret = tmp;
-    }
-
-    good_name[0] = 'a';
-    tmp = json_set(ret->data, good_name, &good_name[1]); //a1
-    if (sys_buf_valid(tmp)) {
-      sys_buf_unlock(ret);
-      ret = tmp;
-    }
-
-    for (uint8_t j = 2;j < 4;j++) { //a1,b1,c1,d1
-      good_item[0] = 'a' + j; //c,d
-      good_name[0] = 'a' + j;
-
-      ptr = json_get(shop_goods->buff->data, good_item);
-      if (sys_buf_valid(ptr)) {
-        tmp = json_set(ret->data, good_name, ptr->data); //c1,d1
+      if (strstr(ptr->data, search) == NULL) { //匹配
         sys_buf_unlock(ptr);
+        continue;
+      }
 
-        if (sys_buf_valid(tmp)) {
-          sys_buf_unlock(ret);
-          ret = tmp;
+      good_idx++;
+      good_name[0] = 'b';
+      snprintf(&good_name[1], 4, "%d", good_idx);
+
+      tmp = json_set(ret->data, good_name, ptr->data); //b1
+      sys_buf_unlock(ptr);
+      if (sys_buf_valid(tmp)) {
+        sys_buf_unlock(ret);
+        ret = tmp;
+      }
+
+      good_name[0] = 'a';
+      tmp = json_set(ret->data, good_name, &good_name[1]); //a1
+      if (sys_buf_valid(tmp)) {
+        sys_buf_unlock(ret);
+        ret = tmp;
+      }
+
+      for (uint8_t j = 2;j < 4;j++) { //a1,b1,c1,d1
+        good_item[0] = 'a' + j; //c,d
+        good_name[0] = 'a' + j;
+
+        ptr = json_get(shop_goods->buff->data, good_item);
+        if (sys_buf_valid(ptr)) {
+          tmp = json_set(ret->data, good_name, ptr->data); //c1,d1
+          sys_buf_unlock(ptr);
+
+          if (sys_buf_valid(tmp)) {
+            sys_buf_unlock(ret);
+            ret = tmp;
+          }
         }
       }
     }
-  }
 
-  if (good_idx == 0) { //未匹配任何商品
-    sys_buf_unlock(ret);
-    return NULL;
+    if (good_idx == 0) { //未匹配任何商品
+      sys_buf_unlock(ret);
+      return NULL;
+    }
   }
 
   snprintf(good_item, 5, "%d", good_idx);

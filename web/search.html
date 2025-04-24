@@ -170,7 +170,7 @@
     <script type="text/javascript">
       let ws = "",
         action = "search",
-        hintSearch = "请输入查找的内容:",
+        hintSearch = "请输入查找的内容(例如 附近):",
         hintSearching = "正在联网查询,请稍后...",
         hint = document.getElementById("labelHint"),
         cont = document.getElementById("content"),
@@ -215,7 +215,7 @@
 
         let shop = items.from || "0";
         let foot =
-          '</tbody><thead><tr><th>店址</th><td colspan="3">{addr}&nbsp;&nbsp;' +
+          '</tbody><thead><tr><th style="width: 30px">店址</th><td colspan="3">{addr}&nbsp;&nbsp;' +
           '<a id="btn_{shop}" href="#" onclick="getMap({shop});return false;">导航</a></td></tr>' +
           '<tr id="row_{shop}" style="display: none"><td colspan="4" class="map-container">' +
           '<img id="img_{shop}"></td></tr></thead></<table>';
@@ -292,7 +292,7 @@
           ws = new WebSocket(hostPort);
 
           ws.onopen = function () {
-            hint.innerText = "请输入查找的内容:";
+            hint.innerText = hintSearch;
             let sendObj = {
               type: action,
               data: "",
